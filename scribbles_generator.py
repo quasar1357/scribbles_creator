@@ -37,7 +37,7 @@ import numpy as np
 import SimpleITK as sitk
 from PIL import Image
 from scipy import ndimage
-from skimage.morphology import skeletonize
+from skimage.morphology import *
 
 sys.setrecursionlimit(1000000)
 seed = 2022
@@ -288,11 +288,10 @@ def scrible_2d(label, iteration=[4, 10]):
     return skeleton_map
 
 
-def scribble4class(label, class_id, class_num, iteration=[4, 10], cut_branch=True):
+def scribble4class(label, class_id, iteration=[4, 10], cut_branch=True):
     '''Generate the scribble annotation for the segmentation class.
     label: the dense annotation
     class_id: the class id
-    class_num: the total number of classes
     iteration: the iterations of the cutting
     cut_branch: the flag of the cutting
     sk_map: the skeleton map of the dense annotation
@@ -300,7 +299,6 @@ def scribble4class(label, class_id, class_num, iteration=[4, 10], cut_branch=Tru
     # Generate a boolean map for the dense annotation matching the class_id
     label = (label == class_id)
     # Generate the scribble annotation for the class
-    print("iteration in scribble4class:", iteration)
     sk_map = scrible_2d(label, iteration=iteration)
     # If the flag of the cutting is True and the class_id is not 0, then cut the branches of the skeleton map
     if cut_branch and class_id != 0:
@@ -337,27 +335,67 @@ def generate_scribble(label, iterations, cut_branch=True):
     return output
 
 
-if __name__ == "__main__":
-    # If this script is executed, the scribble annotation will be generated for the dense annotation for all the datasets.
-    num = 0
-    for i in sorted(glob.glob("./imgs/*_lab.nii.gz")):
-        file_name = i.split("/")[-1]
-        print(f"Begin {file_name}")
-        # Read the dense annotation
-        itk_data = sitk.ReadImage(i)
-        # Transform the dense annotation to a numpy array
-        label = sitk.GetArrayFromImage(itk_data)
-        num_classes = 3  # total segmentation classes
-        # Generate the scribble annotation for the dense annotation
-        output = generate_scribble(label, tuple([1, num_classes-1]))
-        # ignore index for partially cross-entropy loss
-        output[output == 0] = 255
-        output[output == num_classes] = 0
-        # Save the scribble annotation as an image
-        itk_scr = sitk.GetImageFromArray(output)
-        itk_scr.CopyInformation(itk_data)
-        # Replace in the name the dense annotation (labels, = lab) with the scribble annotation
-        sitk.WriteImage(itk_scr, i.replace('_lab.nii.gz', '_scribble.nii.gz'))
-        print(f"End {file_name}")
-        print(num)
-        num += 1
+##################### ROMAN's CODE #####################
+
+def generate_scribble_2(ground_truth, perc):
+    '''
+    Generate the scribble annotation for the dense annotation.
+    Input:
+        ground_truth (numpy array): the fully annotated image
+        perc (int): the percent of the ground truth that should be contained in the scribble annotation for each class
+    Output:
+        output (numpy array): the scribble annotation        
+    '''
+    scribble = np.zeros_like(ground_truth, dtype=np.uint8)
+    # For each class (= value) in the dense annotation, generate the scribble annotation
+    for class_val in set(ground_truth.flatten()):
+        # Generate the scribble annotation for the class
+        class_scribble = scribble_class(ground_truth, class_val, perc)
+        # Add the scribble annotation of this class to the full scribble (which is valid, because there is no overlap between the classes)
+        scribble += class_scribble.astype(np.uint8)
+    return scribble
+
+def scribble_class(gt, class_val, perc):
+    # Generate a boolean map for the dense annotation matching the class_id
+    gt_class_map = (gt == class_val)
+    # Initialize the skeleton map with zeros
+    class_scribble = np.zeros_like(gt, dtype=np.int32)
+    # For each slice of the dense annotation, generate the scribble annotation
+    for i in range(gt_class_map.shape[0]):
+        # If there is no annotation in the slice, then skip the slice
+        if np.sum(gt_class_map[i]) == 0:
+            continue
+        
+        sk_2d = double_sk_class_slice(gt_class_map[i], perc)
+        class_scribble[i] = sk_2d * class_val
+    return class_scribble
+
+
+def sk_class_slice(gt_map_2d, perc):
+    sk_slice = skeletonize(gt_map_2d, method='lee')
+    sk_slice = dilation(sk_slice, square(3))
+    # sk_slice = medial_axis(gt_map_2d)
+    sk_slice = np.asarray((sk_slice == 255), dtype=np.int32)
+    return sk_slice
+
+import napari
+
+def double_sk_class_slice(gt_map_2d, perc):
+
+    first_sk = skeletonize(gt_map_2d, method='lee')
+    first_sk = np.asarray((first_sk == 255), dtype=np.int32)
+    first_sk = dilation(first_sk, square(3))
+
+    mask = first_sk == 1
+    gt_map_2d[mask] = False    
+
+    second_sk = skeletonize(gt_map_2d, method='lee')
+    second_sk = np.asarray((second_sk == 255), dtype=np.int32)
+    second_sk = dilation(second_sk, square(3))
+    if False:
+        v = napari.Viewer()
+        v.add_labels(first_sk)
+        v.add_labels(gt_map_2d)
+        v.add_labels(second_sk)
+
+    return second_sk
