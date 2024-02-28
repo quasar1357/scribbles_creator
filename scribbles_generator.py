@@ -337,25 +337,27 @@ def generate_scribble(label, iterations, cut_branch=True):
 
 ##################### ROMAN's CODE #####################
 
-def generate_scribble_2(ground_truth, perc):
+def generate_scribble_2(ground_truth, num_lines=5):
     '''
     Generate the scribble annotation for the dense annotation.
     Input:
         ground_truth (numpy array): the fully annotated image
-        perc (int): the percent of the ground truth that should be contained in the scribble annotation for each class
+        num_lines (int): the num_lines to be drawn
     Output:
         output (numpy array): the scribble annotation        
     '''
     scribble = np.zeros_like(ground_truth, dtype=np.uint8)
     # For each class (= value) in the dense annotation, generate the scribble annotation
     for class_val in set(ground_truth.flatten()):
+        if class_val == 0:
+            continue
         # Generate the scribble annotation for the class
-        class_scribble = scribble_class(ground_truth, class_val, perc)
+        class_scribble = scribble_class(ground_truth, class_val, num_lines)
         # Add the scribble annotation of this class to the full scribble (which is valid, because there is no overlap between the classes)
         scribble += class_scribble.astype(np.uint8)
     return scribble
 
-def scribble_class(gt, class_val, perc):
+def scribble_class(gt, class_val, num_lines):
     # Generate a boolean map for the dense annotation matching the class_id
     gt_class_map = (gt == class_val)
     # Initialize the skeleton map with zeros
@@ -365,13 +367,17 @@ def scribble_class(gt, class_val, perc):
         # If there is no annotation in the slice, then skip the slice
         if np.sum(gt_class_map[i]) == 0:
             continue
-        
-        sk_2d = double_sk_class_slice(gt_class_map[i], perc)
-        class_scribble[i] = sk_2d * class_val
+        gt_slice = gt_class_map[i]
+        sk_2d = double_sk_class_slice(gt_slice)
+        # Check if a skeleton was created, raise an error if not
+        if np.sum(sk_2d) == 0:
+            raise ValueError(f"No skeleton was created for class {class_val} in slice {i}.")
+        lines = create_lines(sk_2d, gt_slice, num_lines)
+        class_scribble[i] = lines * class_val
     return class_scribble
 
 
-def sk_class_slice(gt_map_2d, perc):
+def sk_class_slice(gt_map_2d, num_lines):
     sk_slice = skeletonize(gt_map_2d, method='lee')
     sk_slice = dilation(sk_slice, square(3))
     # sk_slice = medial_axis(gt_map_2d)
@@ -380,18 +386,21 @@ def sk_class_slice(gt_map_2d, perc):
 
 import napari
 
-def double_sk_class_slice(gt_map_2d, perc):
+def double_sk_class_slice(gt_map_2d):
 
     first_sk = skeletonize(gt_map_2d, method='lee')
     first_sk = np.asarray((first_sk == 255), dtype=np.int32)
     first_sk = dilation(first_sk, square(3))
+    first_sk = binary_closing(first_sk, square(30))
 
     mask = first_sk == 1
     gt_map_2d[mask] = False    
 
     second_sk = skeletonize(gt_map_2d, method='lee')
     second_sk = np.asarray((second_sk == 255), dtype=np.int32)
+    # second_sk = binary_closing(second_sk, square(3))
     second_sk = dilation(second_sk, square(3))
+
     if False:
         v = napari.Viewer()
         v.add_labels(first_sk)
@@ -399,3 +408,42 @@ def double_sk_class_slice(gt_map_2d, perc):
         v.add_labels(second_sk)
 
     return second_sk
+
+def create_lines(sk_2d, gt_map_2d, num_lines):
+    all_lines = np.zeros_like(gt_map_2d, dtype=np.int32)
+    for i in range(num_lines):
+        line = draw_line(sk_2d, gt_map_2d)
+        line_map = np.asarray((line), dtype=np.int32)
+        all_lines += line_map
+    return all_lines
+
+def draw_line(sk_2d, gt_map_2d):
+    # Take a random point on the skeleton and draw a line to the nearest edge point
+    line_coordinates = np.array(np.where(sk_2d == 1)).T
+    random_point_index = np.random.randint(0, len(line_coordinates))
+    random_point = line_coordinates[random_point_index]
+    shortest_path = find_shortest_path(gt_map_2d, random_point)
+    shortest_path_map = shortest_path == 1
+    return shortest_path_map
+
+from scipy.spatial import distance
+from skimage.draw import line
+
+def find_shortest_path(segmentation_map, start_point):
+    # Find the coordinates of the edges of the segmentation map
+    edge_coordinates = np.array(np.where(segmentation_map == False)).T
+    # Compute distances from the start point to all edge points
+    distances = distance.cdist([start_point], edge_coordinates)
+    # Find the index of the closest edge point
+    closest_edge_index = np.argmin(distances)
+    # Retrieve the coordinates of the closest edge point
+    closest_edge_point = edge_coordinates[closest_edge_index]
+    # Use OpenCV's line function to draw a line from start_point to closest_edge_point
+    # path_map = cv2.line(np.zeros_like(segmentation_map), tuple(start_point[::-1]), tuple(closest_edge_point[::-1]), color=255, thickness=3)
+
+    # Create an empty image to draw the line on
+    path_map = np.zeros_like(segmentation_map)
+    # Draw the line on the image
+    rr, cc = line(start_point[0], start_point[1], closest_edge_point[0], closest_edge_point[1])
+    path_map[rr, cc] = 1
+    return path_map
