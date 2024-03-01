@@ -1,8 +1,7 @@
-from skimage.morphology import *
 import numpy as np
-import napari
-from scipy.spatial import distance
+from skimage.morphology import *
 from skimage.draw import line
+from scipy.spatial import distance
 
 def create_scribble(ground_truth, scribble_width=1, num_squares=5, sq_size=20, min_sq_pix=10, num_lines=5, min_line_pix=10, mode="all"):
     '''
