@@ -9,7 +9,13 @@ def create_scribble(ground_truth, scribble_width=1, num_squares=5, sq_size=20, m
     Generate the scribble annotation for the ground truth.
     Input:
         ground_truth (numpy array): the fully annotated image
+        scribble_width (int): the width of the scribble lines
+        num_squares (int): the number of squares to be drawn (from the skeletons)
+        sq_size (int): the size of the squares
+        min_sq_pix (int): the minimum number of pixels for a square
         num_lines (int): the num_lines to be drawn
+        min_line_pix (int): the minimum number of pixels for a line
+        mode (str): the scribble types to use (lines, prim_sk, sec_sk, both_sk, all)
     Output:
         output (numpy array): the scribble annotation        
     '''
@@ -31,7 +37,13 @@ def scribble_class(gt, class_val, scribble_width=1, num_squares=5, sq_size=20, m
     Input:
         gt (numpy array): the ground truth
         class_val (int): the value of the class
+        scribble_width (int): the width of the scribble lines
+        num_squares (int): the number of squares to be drawn (from the skeletons)
+        sq_size (int): the size of the squares
+        min_sq_pix (int): the minimum number of pixels for a square
         num_lines (int): the num_lines to be drawn
+        min_line_pix (int): the minimum number of pixels for a line
+        mode (str): the scribble types to use (lines, prim_sk, sec_sk, both_sk, all)
     Output:
         class_scribble (numpy array): the scribble annotation for the class
     '''
@@ -39,6 +51,7 @@ def scribble_class(gt, class_val, scribble_width=1, num_squares=5, sq_size=20, m
     gt_class_mask = (gt == class_val)
     # Initialize the scribble for the class with zeros
     class_scribble = np.zeros_like(gt, dtype=np.int32)
+
     # Generate the primary and secondary skeleton for the class in this slice
     prim_sk, sec_sk = double_sk_class(gt_class_mask)
     # Check if a skeleton was created, raise an error if not
@@ -47,17 +60,23 @@ def scribble_class(gt, class_val, scribble_width=1, num_squares=5, sq_size=20, m
     # Pick random squares from the skeletons
     prim_sk_squares = pick_sk_squares(prim_sk, num_squares=num_squares, sq_size=sq_size, min_sq_pix=min_sq_pix)
     sec_sk_squares = pick_sk_squares(sec_sk, num_squares=num_squares, sq_size=sq_size, min_sq_pix=min_sq_pix)
+    both_sk_squares = np.logical_or(prim_sk_squares, sec_sk_squares)
 
-    # Create lines leading from the skeleton to the edge of the mask
+    # Create lines leading from the primary skeleton to the edge of the mask
     lines = create_lines(prim_sk, gt_class_mask, num_lines, min_line_pix)
-    # lines = create_lines(sec_sk, gt_class_mask, num_lines)
+    lines_and_squares = np.logical_or(lines, both_sk_squares)
+
+    # Define the scribble type to use
     if mode == "lines": class_scribble_mask = lines
     elif mode == "prim_sk": class_scribble_mask = prim_sk_squares
     elif mode == "sec_sk": class_scribble_mask = sec_sk_squares
-    elif mode == "all": class_scribble_mask = np.logical_or(prim_sk_squares, sec_sk_squares, lines)
+    elif mode == "both_sk": class_scribble_mask = both_sk_squares
+    elif mode == "all": class_scribble_mask = lines_and_squares
 
     # Dilate the scribble to make them wider
     class_scribble_mask = dilation(class_scribble_mask, square(scribble_width))
+    # Ensure that the scribble is within the ground truth mask
+    class_scribble_mask = np.logical_and(class_scribble_mask, gt_class_mask)
     # Add the scribble as class value to the overall scribble
     class_scribble = class_scribble_mask * class_val
     return class_scribble
@@ -82,8 +101,7 @@ def double_sk_class(gt_mask, closing_prim=0, closing_sec=0):
     # Create a dilated version of the primary skeleton for generating the secondary skeleton (otherwise it interprets it as gaps in the primary skeleton)
     prim_sk_dilated = binary_dilation(prim_sk, square(3))
     # Add the dilated skeleton to the ground truth mask
-    prim_sk_mask = prim_sk_dilated == 1
-    gt_mask2d_with_prim_sk[prim_sk_mask] = False
+    gt_mask2d_with_prim_sk[prim_sk_dilated] = False
     # Create the secondary skeleton
     sec_sk = skeletonize(gt_mask2d_with_prim_sk, method='lee') != 0
     if closing_sec: sec_sk = binary_closing(sec_sk, square(closing_prim))
@@ -116,25 +134,25 @@ def pick_sk_squares(sk, num_squares=5, sq_size=20, min_sq_pix=10):
             break
     return all_squares
 
-def pick_square(sk, sq_size=20):
+def pick_square(mask, sq_size=20):
     '''
-    Take a random point on the skeleton (= True in the mask) and return the skeleton iside a square around it.
+    Take a random point on a mask (= True) and return the part inside a square around it.
     Input:
-        sk (numpy array): the skeleton mask
+        mask (numpy array): the mask
         num_squares (int): the number of squares to be drawn
-        sq_size (int): the size of the square
+        sq_size (int): the size of the squares
     Output:
-        square_mask (numpy array): the skeleton mask inside the square
+        square_mask (numpy array): the mask inside the square
     '''
-    # Choose a random point from the skeleton
-    sk_coordinates = np.argwhere(sk)
-    total_points = sk_coordinates.shape[0]
+    # Choose a random point from the mask
+    mask_coordinates = np.argwhere(mask)
+    total_points = mask_coordinates.shape[0]
     random_point_index = np.random.choice(total_points)
-    random_point = sk_coordinates[random_point_index]
+    random_point = mask_coordinates[random_point_index]
     # Create an empty image to draw the square on
-    square_mask = np.zeros_like(sk)
+    square_mask = np.zeros_like(mask)
     # Draw the square on the image
-    square_mask[random_point[0]-sq_size//2:random_point[0]+sq_size//2, random_point[1]-sq_size//2:random_point[1]+sq_size//2] = sk[random_point[0]-sq_size//2:random_point[0]+sq_size//2, random_point[1]-sq_size//2:random_point[1]+sq_size//2]
+    square_mask[random_point[0]-sq_size//2:random_point[0]+sq_size//2, random_point[1]-sq_size//2:random_point[1]+sq_size//2] = mask[random_point[0]-sq_size//2:random_point[0]+sq_size//2, random_point[1]-sq_size//2:random_point[1]+sq_size//2]
     return square_mask
 
 def create_lines(sk, gt_mask, num_lines=5, min_line_pix=10):
@@ -154,7 +172,7 @@ def create_lines(sk, gt_mask, num_lines=5, min_line_pix=10):
     # Loop until the desired number of lines is created
     while num_created_lines < num_lines:
         attempts += 1
-        line = draw_line(sk, gt_mask, num_lines, dist_to_edge=2)
+        line = draw_line(sk, gt_mask, dist_to_edge=2)
         # If the line is too short, skip it
         if np.sum(line) < min_line_pix:
             continue
@@ -168,9 +186,15 @@ def create_lines(sk, gt_mask, num_lines=5, min_line_pix=10):
             break
     return all_lines
 
-def draw_line(sk_mask, gt_mask, num_lines=5, dist_to_edge=5):
+def draw_line(sk_mask, gt_mask, dist_to_edge=5):
     '''
     Take a random point on the skeleton (= True in the mask) and draw a line to the nearest edge point of the ground truth mask.
+    Input:
+        sk_mask (numpy array): the skeleton mask
+        gt_mask (numpy array): the ground truth mask
+        dist_to_edge (int): the distance of the line to the edge
+    Output:
+        shortest_path_mask (numpy array): the mask of the shortest path
     '''
     # Choose a random point from the skeleton
     sk_coordinates = np.argwhere(sk_mask)
@@ -191,13 +215,12 @@ def draw_line(sk_mask, gt_mask, num_lines=5, dist_to_edge=5):
 
 def point_to_edge(start_point, segmentation_mask):
     '''
-    Find the shortest path from a point to the edge of a segmentation mask
+    Find the shortest path from a point to the edge of a segmentation mask.
     Input:
         start_point (tuple): the coordinates of the starting point
         segmentation_mask (numpy array): the segmentation mask
     Output:
         path_mask (numpy array): the mask of the shortest path
-        min_dist (float): the length of the shortest path
     '''
     # Find the coordinates of the edges of the segmentation mask
     edge_coordinates = np.argwhere(segmentation_mask == False)
