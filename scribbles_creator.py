@@ -91,7 +91,7 @@ def scribble_class(gt, class_val, scribble_width=1, sk_max_perc=0.05, sq_size=20
 
     # Create lines leading from the primary skeleton to the edge of the mask
     lines_max_pix = int(np.sum(gt_class_mask) * lines_max_perc / 100)
-    lines_pix_range = (sq_size//2, sq_size*2) if not lines_pix_range else lines_pix_range
+    line_pix_range = (sq_size//2, sq_size*2) if not line_pix_range else line_pix_range
     print(f"lines_max_pix: {lines_max_pix}, line_pix_range: {line_pix_range}")
     lines = create_lines(prim_sk, gt_class_mask, lines_max_pix, line_pix_range)
     lines_and_squares = np.logical_or(lines, both_sk_squares)
@@ -144,7 +144,7 @@ def double_sk_class(gt_mask, closing_prim=0, closing_sec=0):
 
     return prim_sk, sec_sk
 
-def pick_sk_squares(sk, sk_max_pix=20, sq_size=20, sq_pix_range=False):
+def pick_sk_squares(sk, sk_max_pix=20, sq_size=20, sq_pix_range=(10, 40)):
     '''
     Pick random squares from the skeleton.
     Input:
@@ -161,8 +161,9 @@ def pick_sk_squares(sk, sk_max_pix=20, sq_size=20, sq_pix_range=False):
     attempts = 0
     overshoots = 0
     # Loop until the total number of pixels in all squares approaches the threshold or the maximum number of attempts is reached
-    while overshoots < 10 or added_pix == 0:
+    while overshoots < 10:
         attempts += 1
+        # Pick a random square from the skeleton
         square = pick_square(sk, sq_size)
         pix_in_sq = np.sum(square)
         # If there are too few or too many pixels in the square, skip it
@@ -179,13 +180,10 @@ def pick_sk_squares(sk, sk_max_pix=20, sq_size=20, sq_pix_range=False):
         # If the number of attempts is too high or 90% of the skeleton are annotated, print a warning and break the loop
         if attempts > pix_in_sk or added_pix > pix_in_sk * 0.9:
             print("Warning: Could not create enough squares from the skeleton ({sk}).")
-            break
-        # if overshoots > 10 and added_pix == 0:
-        #     all_squares = pick_sk_squares(sk, sk_max_pix, sq_size//2, (sq_pix_range[0]//2, sq_pix_range[1]))
-        #     added_pix = np.sum(all_squares)
-        #     break
-        # if overshoots > 10:
-        #     break
+            return
+    # If no squares were added, try again with smaller squares and a range starting at a lower value (allowing fewer pixels in a square)
+    if added_pix == 0:
+        all_squares = pick_sk_squares(sk, sk_max_pix, sq_size//2, (sq_pix_range[0]//2, sq_pix_range[1]))
     return all_squares
 
 def pick_square(mask, sq_size=20):
@@ -208,7 +206,7 @@ def pick_square(mask, sq_size=20):
     square_mask[random_point[0]-sq_size//2:random_point[0]+sq_size//2, random_point[1]-sq_size//2:random_point[1]+sq_size//2] = mask[random_point[0]-sq_size//2:random_point[0]+sq_size//2, random_point[1]-sq_size//2:random_point[1]+sq_size//2]
     return square_mask
 
-def create_lines(sk, gt_mask, lines_max_pix=20, line_pix_range=False):
+def create_lines(sk, gt_mask, lines_max_pix=20, line_pix_range=(10, 40)):
     '''
     Create lines leading from a skeleton to the edge of the mask.
     Input:
@@ -225,8 +223,9 @@ def create_lines(sk, gt_mask, lines_max_pix=20, line_pix_range=False):
     attempts = 0
     overshoots = 0
     # Loop until the pixels in all lines approach the threshold or the maximum number of attempts is reached
-    while overshoots < 10 or added_pix == 0:
+    while overshoots < 10:
         attempts += 1
+        # Draw a line from the skeleton to the edge of the mask
         line = draw_line(sk, gt_mask, dist_to_edge=2)
         pix_in_line = np.sum(line)
         # If the line is too short or too long, skip it
@@ -244,7 +243,10 @@ def create_lines(sk, gt_mask, lines_max_pix=20, line_pix_range=False):
         # If the number of attempts is too high, print a warning and break the loop
         if attempts > np.sum(sk):
             print("Warning: Could not create enough lines from the skeleton to the edge.")
-            break
+            return
+    # If no lines were added, try again with a range starting at a lower value (allowing fewer pixels per line)
+    if added_pix == 0:
+        all_lines = create_lines(sk, gt_mask, lines_max_pix, (line_pix_range[0]//2, line_pix_range[1]))
     return all_lines
 
 def draw_line(sk_mask, gt_mask, dist_to_edge=5):
