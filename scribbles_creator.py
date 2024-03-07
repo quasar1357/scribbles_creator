@@ -54,7 +54,7 @@ def create_scribble(ground_truth, scribble_width=1, sk_max_perc=0.05, sq_size=20
         scribble += class_scribble.astype(np.uint8)
     return scribble
 
-def scribble_class(gt, class_val, scribble_width=1, sk_max_perc=0.05, sq_size=20, sq_pix_range=False, lines_max_perc=0.05, line_pix_range=False, mode="all"):
+def scribble_class(gt, class_val, scribble_width=1, sk_max_perc=0.05, sq_size=20, sq_pix_range=False, lines_max_perc=0.05, line_pix_range=False, mode="all", print_steps=False):
     '''
     Generate the scribble annotation for a specific class in the ground truth.
     Input:
@@ -83,8 +83,9 @@ def scribble_class(gt, class_val, scribble_width=1, sk_max_perc=0.05, sq_size=20
     # Pick random squares from the skeletons
     sk_max_pix = int(np.sum(gt_class_mask) * sk_max_perc / 100)
     sq_pix_range = (sq_size//2, sq_size*2) if not sq_pix_range else sq_pix_range
-    print(f"class {class_val}:")
-    print(f"sk_max_pix: {sk_max_pix}, sq_size: {sq_size}, sk_pix_range: {sq_pix_range}")
+    if print_steps:
+        print(f"class {class_val}:")
+        print(f"sk_max_pix: {sk_max_pix}, sq_size: {sq_size}, sk_pix_range: {sq_pix_range}")
     prim_sk_squares = pick_sk_squares(prim_sk, sk_max_pix=sk_max_pix, sq_size=sq_size, sq_pix_range=sq_pix_range)
     sec_sk_squares = pick_sk_squares(sec_sk, sk_max_pix=sk_max_pix, sq_size=sq_size, sq_pix_range=sq_pix_range)
     both_sk_squares = np.logical_or(prim_sk_squares, sec_sk_squares)
@@ -92,15 +93,17 @@ def scribble_class(gt, class_val, scribble_width=1, sk_max_perc=0.05, sq_size=20
     # Create lines leading from the primary skeleton to the edge of the mask
     lines_max_pix = int(np.sum(gt_class_mask) * lines_max_perc / 100)
     line_pix_range = (sq_size//2, sq_size*2) if not line_pix_range else line_pix_range
-    print(f"lines_max_pix: {lines_max_pix}, line_pix_range: {line_pix_range}")
+    if print_steps:
+        print(f"lines_max_pix: {lines_max_pix}, line_pix_range: {line_pix_range}")
     lines = create_lines(prim_sk, gt_class_mask, lines_max_pix, line_pix_range)
     lines_and_squares = np.logical_or(lines, both_sk_squares)
 
     # Print some intermediate values (change False to True to print them)
-    print(f"   pix: {np.sum(lines_and_squares)} = {np.sum(lines_and_squares)/np.sum(gt_class_mask)*100:.2f}%")
-    print(f"   prim_sk_squares: {np.sum(prim_sk_squares)} = {np.sum(prim_sk_squares)/np.sum(gt_class_mask)*100:.2f}%")
-    print(f"   sec_sk_squares: {np.sum(sec_sk_squares)} = {np.sum(sec_sk_squares)/np.sum(gt_class_mask)*100:.2f}%")
-    print(f"   lines: {np.sum(lines)} = {np.sum(lines)/np.sum(gt_class_mask)*100:.2f}%")
+    if print_steps:
+        print(f"   pix: {np.sum(lines_and_squares)} = {np.sum(lines_and_squares)/np.sum(gt_class_mask)*100:.2f}%")
+        print(f"   prim_sk_squares: {np.sum(prim_sk_squares)} = {np.sum(prim_sk_squares)/np.sum(gt_class_mask)*100:.2f}%")
+        print(f"   sec_sk_squares: {np.sum(sec_sk_squares)} = {np.sum(sec_sk_squares)/np.sum(gt_class_mask)*100:.2f}%")
+        print(f"   lines: {np.sum(lines)} = {np.sum(lines)/np.sum(gt_class_mask)*100:.2f}%")
 
     # Define the scribble type to use
     if mode == "lines": class_scribble_mask = lines
