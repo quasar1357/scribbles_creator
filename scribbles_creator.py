@@ -1,6 +1,4 @@
 import numpy as np
-import napari
-from PIL import Image
 from skimage.morphology import *
 from skimage.draw import line
 from scipy.spatial import distance

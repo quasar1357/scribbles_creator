@@ -3,8 +3,9 @@ import numpy as np
 import pandas as pd
 from PIL import Image
 import os
-from scribbles_creator import create_even_scribble
 import napari
+
+from scribbles_creator import create_even_scribble
 from convpaint_helpers import *
 
 def get_cellpose_img_data(folder_path, img_num, load_img=False, load_gt=False, load_scribbles=False, mode="NA", bin="NA", suff=False, load_pred=False, pred_tag="convpaint"):
