@@ -80,8 +80,9 @@ def scribble_class(gt, class_val, scribble_width=1, sk_max_perc=0.05, sq_size=20
     if np.sum(sec_sk) == 0:
         raise ValueError(f"No skeleton was created for class {class_val}.")
     # Pick random squares from the skeletons
-    sk_max_pix = int(np.sum(gt_class_mask) * sk_max_perc / 100)
-    sq_pix_range = (sq_size//2, sq_size*2) if not sq_pix_range else sq_pix_range
+    sk_max_pix = max(2, int(np.sum(gt_class_mask) * sk_max_perc / 100)) # Ensure that at least two pixels are picked
+    # Ensure that each square is allowed to as little pixels as the maximum total pixels in all squares
+    sq_pix_range = (min(sq_size//2, sk_max_pix), sq_size*2) if not sq_pix_range else sq_pix_range
     if print_steps:
         print(f"class {class_val}:")
         print(f"sk_max_pix: {sk_max_pix}, sq_size: {sq_size}, sk_pix_range: {sq_pix_range}")
@@ -90,8 +91,9 @@ def scribble_class(gt, class_val, scribble_width=1, sk_max_perc=0.05, sq_size=20
     both_sk_squares = np.logical_or(prim_sk_squares, sec_sk_squares)
 
     # Create lines leading from the primary skeleton to the edge of the mask
-    lines_max_pix = int(np.sum(gt_class_mask) * lines_max_perc / 100)
-    line_pix_range = (sq_size//2, sq_size*2) if not line_pix_range else line_pix_range
+    lines_max_pix = max(2, int(np.sum(gt_class_mask) * lines_max_perc / 100)) # Ensure that at least two pixels are picked
+    # Ensure that the line is allowed to be as short as the maximum total pixels in all lines
+    line_pix_range = (min(sq_size//2, lines_max_pix), sq_size*2) if not line_pix_range else line_pix_range 
     if print_steps:
         print(f"lines_max_pix: {lines_max_pix}, line_pix_range: {line_pix_range}")
     lines = create_lines(prim_sk, gt_class_mask, lines_max_pix, line_pix_range)
@@ -166,7 +168,7 @@ def pick_sk_squares(sk, sk_max_pix=20, sq_size=20, sq_pix_range=(10, 40)):
     while overshoots < 10:
         attempts += 1
         # If the number of attempts is too high or 90% of the skeleton are annotated, print a warning and break the loop
-        if attempts > pix_in_sk * sk_max_pix or added_pix > pix_in_sk * 0.9:
+        if attempts > pix_in_sk * sk_max_pix * 10 or added_pix > pix_in_sk * 0.99:
             print("Warning: Could not create enough squares from the skeleton ({sk}).")
             return
         # Pick a random square from the skeleton
