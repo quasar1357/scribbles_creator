@@ -1,5 +1,6 @@
 import numpy as np
 import napari
+from PIL import Image
 from skimage.morphology import *
 from skimage.draw import line
 from scipy.spatial import distance
@@ -303,43 +304,3 @@ def point_to_edge(start_point, segmentation_mask):
     rr, cc = line(start_point[0], start_point[1], closest_edge_point[0], closest_edge_point[1])
     path_mask[rr, cc] = True
     return path_mask
-
-
-############################ CELLPOSE DATA HANDLER
-
-
-def get_cellpose_img_data(folder_path, img_num, load_img=False, load_gt=False, load_scribbles=False, mode="NA", bin="NA", suff=False, load_pred=False, pred_tag="convpaint"):
-    
-    folder_path = folder_path if folder_path[-1] == "/" else folder_path + "/"
-    img_base = str(img_num).zfill(3)
-
-    img_path = folder_path + img_base + f"_img.png"
-    if load_img:
-        img = np.array(Image.open(img_path))
-    else:
-        img = None
-
-    gt_path = folder_path + img_base + "_ground_truth.png"
-    if load_gt:
-        ground_truth = np.array(Image.open(gt_path))
-    else:
-        ground_truth = None
-
-    suff = "" if not suff else "_" + suff
-
-    scribbles_path = folder_path + img_base + f"_scribbles_{mode}_{bin}{suff}.png"
-    if load_scribbles:
-        scribbles = np.array(Image.open(scribbles_path))
-    else:
-        scribbles = None
-
-    pred_path = folder_path + img_base + f"_{pred_tag}_{mode}_{bin}{suff}.png"
-    if load_pred:
-        pred = np.array(Image.open(pred_path))  
-    else:
-        pred = None
-
-    img_data = {"img_path": img_path, "gt_path": gt_path, "scribbles_path": scribbles_path, "pred_path": pred_path,
-                "img": img, "gt": ground_truth, "scribbles": scribbles, "pred": pred}
-
-    return img_data
