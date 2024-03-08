@@ -1,4 +1,5 @@
 import numpy as np
+import napari
 from skimage.morphology import *
 from skimage.draw import line
 from scipy.spatial import distance
@@ -76,6 +77,9 @@ def scribble_class(gt, class_val, scribble_width=1, sk_max_perc=0.05, sq_size=20
 
     # Generate the primary and secondary skeleton for the class in this slice
     prim_sk, sec_sk = double_sk_class(gt_class_mask)
+    # v = napari.Viewer()
+    # v.add_image(prim_sk)
+    # v.add_image(sec_sk)
     # Check if a skeleton was created, raise an error if not
     if np.sum(sec_sk) == 0:
         raise ValueError(f"No skeleton was created for class {class_val}.")
@@ -168,9 +172,9 @@ def pick_sk_squares(sk, sk_max_pix=20, sq_size=20, sq_pix_range=(10, 40)):
     while overshoots < 10:
         attempts += 1
         # If the number of attempts is too high or 90% of the skeleton are annotated, print a warning and break the loop
-        if attempts > pix_in_sk * sk_max_pix * 10 or added_pix > pix_in_sk * 0.99:
+        if attempts > pix_in_sk * sk_max_pix or added_pix > pix_in_sk * 0.99:
             print("Warning: Could not create enough squares from the skeleton ({sk}).")
-            return
+            return all_squares
         # Pick a random square from the skeleton
         square = pick_square(sk, sq_size)
         pix_in_sq = np.sum(square)
@@ -232,7 +236,7 @@ def create_lines(sk, gt_mask, lines_max_pix=20, line_pix_range=(10, 40)):
         # If the number of attempts is too high, print a warning and break the loop
         if attempts > np.sum(sk) * lines_max_pix:
             print("Warning: Could not create enough lines from the skeleton to the edge.")
-            return        
+            return all_lines   
         # Draw a line from the skeleton to the edge of the mask
         line = draw_line(sk, gt_mask, dist_to_edge=2)
         pix_in_line = np.sum(line)
