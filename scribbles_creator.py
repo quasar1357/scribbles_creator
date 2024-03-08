@@ -166,6 +166,10 @@ def pick_sk_squares(sk, sk_max_pix=20, sq_size=20, sq_pix_range=(10, 40)):
     # Loop until the total number of pixels in all squares approaches the threshold or the maximum number of attempts is reached
     while overshoots < 10:
         attempts += 1
+        # If the number of attempts is too high or 90% of the skeleton are annotated, print a warning and break the loop
+        if attempts > pix_in_sk * sk_max_pix or added_pix > pix_in_sk * 0.9:
+            print("Warning: Could not create enough squares from the skeleton ({sk}).")
+            return
         # Pick a random square from the skeleton
         square = pick_square(sk, sq_size)
         pix_in_sq = np.sum(square)
@@ -180,10 +184,6 @@ def pick_sk_squares(sk, sk_max_pix=20, sq_size=20, sq_pix_range=(10, 40)):
         else:
             all_squares = np.logical_or(all_squares, square)
             added_pix = np.sum(all_squares)
-        # If the number of attempts is too high or 90% of the skeleton are annotated, print a warning and break the loop
-        if attempts > pix_in_sk or added_pix > pix_in_sk * 0.9:
-            print("Warning: Could not create enough squares from the skeleton ({sk}).")
-            return
     # If no squares were added, try again with smaller squares and a range starting at a lower value (allowing fewer pixels in a square)
     if added_pix == 0:
         all_squares = pick_sk_squares(sk, sk_max_pix, sq_size//2, (sq_pix_range[0]//2, sq_pix_range[1]))
@@ -228,6 +228,10 @@ def create_lines(sk, gt_mask, lines_max_pix=20, line_pix_range=(10, 40)):
     # Loop until the pixels in all lines approach the threshold or the maximum number of attempts is reached
     while overshoots < 10:
         attempts += 1
+        # If the number of attempts is too high, print a warning and break the loop
+        if attempts > np.sum(sk) * lines_max_pix:
+            print("Warning: Could not create enough lines from the skeleton to the edge.")
+            return        
         # Draw a line from the skeleton to the edge of the mask
         line = draw_line(sk, gt_mask, dist_to_edge=2)
         pix_in_line = np.sum(line)
@@ -243,10 +247,6 @@ def create_lines(sk, gt_mask, lines_max_pix=20, line_pix_range=(10, 40)):
             # Add the line to the mask of all lines
             all_lines = np.logical_or(all_lines, line)
             added_pix = np.sum(all_lines)
-        # If the number of attempts is too high, print a warning and break the loop
-        if attempts > np.sum(sk):
-            print("Warning: Could not create enough lines from the skeleton to the edge.")
-            return
     # If no lines were added, try again with a range starting at a lower value (allowing fewer pixels per line)
     if added_pix == 0:
         all_lines = create_lines(sk, gt_mask, lines_max_pix, (line_pix_range[0]//2, line_pix_range[1]))
@@ -303,3 +303,43 @@ def point_to_edge(start_point, segmentation_mask):
     rr, cc = line(start_point[0], start_point[1], closest_edge_point[0], closest_edge_point[1])
     path_mask[rr, cc] = True
     return path_mask
+
+
+############################ CELLPOSE DATA HANDLER
+
+
+def get_cellpose_img_data(folder_path, img_num, load_img=False, load_gt=False, load_scribbles=False, mode="NA", bin="NA", suff=False, load_pred=False, pred_tag="convpaint"):
+    
+    folder_path = folder_path if folder_path[-1] == "/" else folder_path + "/"
+    img_base = str(img_num).zfill(3)
+
+    img_path = folder_path + img_base + f"_img.png"
+    if load_img:
+        img = np.array(Image.open(img_path))
+    else:
+        img = None
+
+    gt_path = folder_path + img_base + "_ground_truth.png"
+    if load_gt:
+        ground_truth = np.array(Image.open(gt_path))
+    else:
+        ground_truth = None
+
+    suff = "" if not suff else "_" + suff
+
+    scribbles_path = folder_path + img_base + f"_scribbles_{mode}_{bin}{suff}.png"
+    if load_scribbles:
+        scribbles = np.array(Image.open(scribbles_path))
+    else:
+        scribbles = None
+
+    pred_path = folder_path + img_base + f"_{pred_tag}_{mode}_{bin}{suff}.png"
+    if load_pred:
+        pred = np.array(Image.open(pred_path))  
+    else:
+        pred = None
+
+    img_data = {"img_path": img_path, "gt_path": gt_path, "scribbles_path": scribbles_path, "pred_path": pred_path,
+                "img": img, "gt": ground_truth, "scribbles": scribbles, "pred": pred}
+
+    return img_data
