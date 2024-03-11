@@ -4,7 +4,7 @@ from skimage.morphology import *
 from skimage.draw import line
 from scipy.spatial import distance
 
-def create_even_scribble(ground_truth, max_perc=0.2, sq_scaling=False, mode="all"):
+def create_even_scribble(ground_truth, max_perc=0.2, sq_scaling=False, mode="all", print_steps=False):
     '''Generate the scribble annotation for the ground truth using an even distribution of pixels among the chosen scribble types (all, both skeletons or individual skeletons and lines).
     This function uses a scribble_width of 1, a formula to determine the square size and a range for pixels inside a square or line of half to double one square side length.
     These parameters should be suited for max_perc values between approximately 0.05 and 1.
@@ -24,10 +24,10 @@ def create_even_scribble(ground_truth, max_perc=0.2, sq_scaling=False, mode="all
     sq_size = int(sq_size)
 
     # Generate the scribble annotation for the ground truth
-    scribbles = create_scribble(ground_truth, scribble_width=scribble_width, sk_max_perc=max_perc_per_type, sq_size=sq_size, sq_pix_range=False, lines_max_perc=max_perc_per_type, line_pix_range=False, mode=mode)
+    scribbles = create_scribble(ground_truth, scribble_width=scribble_width, sk_max_perc=max_perc_per_type, sq_size=sq_size, sq_pix_range=False, lines_max_perc=max_perc_per_type, line_pix_range=False, mode=mode, print_steps=print_steps)
     return scribbles
 
-def create_scribble(ground_truth, scribble_width=1, sk_max_perc=0.05, sq_size=20, sq_pix_range=False, lines_max_perc=0.05, line_pix_range=False, mode="all"):
+def create_scribble(ground_truth, scribble_width=1, sk_max_perc=0.05, sq_size=20, sq_pix_range=False, lines_max_perc=0.05, line_pix_range=False, mode="all", print_steps=False):
     '''
     Generate the scribble annotation for the ground truth.
     Input:
@@ -49,12 +49,12 @@ def create_scribble(ground_truth, scribble_width=1, sk_max_perc=0.05, sq_size=20
         if class_val == 0:
             continue
         # Generate the scribble annotation for the class
-        class_scribble = scribble_class(ground_truth, class_val, scribble_width, sk_max_perc, sq_size, sq_pix_range, lines_max_perc, line_pix_range, mode)
+        class_scribble = scribble_class(ground_truth, class_val, scribble_width, sk_max_perc, sq_size, sq_pix_range, lines_max_perc, line_pix_range, mode, print_steps=print_steps)
         # Add the scribble annotation of this class to the full scribble (which is valid, because there is no overlap between the classes)
         scribble += class_scribble.astype(np.uint8)
     return scribble
 
-def scribble_class(gt, class_val, scribble_width=1, sk_max_perc=0.05, sq_size=20, sq_pix_range=False, lines_max_perc=0.05, line_pix_range=False, mode="all", print_steps=True):
+def scribble_class(gt, class_val, scribble_width=1, sk_max_perc=0.05, sq_size=20, sq_pix_range=False, lines_max_perc=0.05, line_pix_range=False, mode="all", print_steps=False):
     '''
     Generate the scribble annotation for a specific class in the ground truth.
     Input:
@@ -103,7 +103,6 @@ def scribble_class(gt, class_val, scribble_width=1, sk_max_perc=0.05, sq_size=20
             print(f"   sec_sk_squares: {np.sum(sec_sk_squares)} = {np.sum(sec_sk_squares)/np.sum(gt_class_mask)*100:.2f}%")
     if mode in ("both_sk", "all"):
         both_sk_squares = np.logical_or(prim_sk_squares, sec_sk_squares)
-    
     # If lines are needed, create and pick them (lines leading from the primary skeleton to the edge of the mask)
     if mode in ("lines", "all"):
         # Calculate how many pixels of lines are allowed in this class given the percentage; but ensure that at least two pixels are picked
