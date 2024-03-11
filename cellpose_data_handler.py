@@ -17,7 +17,7 @@ def get_cellpose_img_data(folder_path, img_num, load_img=False, load_gt=False, l
 
     img_path = folder_path + img_base + f"_img.png"
     if load_img:
-        img = np.array(Image.open(img_path))[:,:,1]
+        img = np.array(Image.open(img_path))#[:,:,1] # NOTE: If we only want to use 1 channel, we can filter here
     else:
         img = None
 
