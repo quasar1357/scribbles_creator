@@ -85,7 +85,7 @@ def scribble_class(gt, class_val, scribble_width=1, sk_max_perc=0.05, sq_size=20
     if np.sum(prim_sk) == 0:
         raise ValueError(f"No skeleton was created for class {class_val}.")
     # Calculate how many pixels of each skeleton are allowed in this class given the percentage; but ensure that at least two pixels are picked
-    sk_max_pix = max(2, tot_class_pix * sk_max_perc / 100)
+    sk_max_pix = max(1, tot_class_pix * sk_max_perc / 100)
     # Ensure that each square is allowed to as little pixels as the maximum total pixels in all squares
     sq_pix_range = (min(sq_size//2, sk_max_pix), sq_size*2) if not sq_pix_range else sq_pix_range
     if print_steps:
@@ -107,7 +107,7 @@ def scribble_class(gt, class_val, scribble_width=1, sk_max_perc=0.05, sq_size=20
     # If lines are needed, create and pick them (lines leading from the primary skeleton to the edge of the mask)
     if mode in ("lines", "all"):
         # Calculate how many pixels of lines are allowed in this class given the percentage; but ensure that at least two pixels are picked
-        lines_max_pix = max(2, tot_class_pix * lines_max_perc / 100)
+        lines_max_pix = max(1, tot_class_pix * lines_max_perc / 100)
         # Ensure that the line is allowed to be as short as the maximum total pixels in all lines
         line_pix_range = (min(sq_size//2, lines_max_pix), sq_size*2) if not line_pix_range else line_pix_range 
         lines = create_lines(prim_sk, gt_class_mask, lines_max_pix, line_pix_range)
@@ -175,15 +175,20 @@ def pick_sk_squares(sk, sk_max_pix=20, sq_size=20, sq_pix_range=(10, 40)):
         all_squares (numpy array): the mask of all squares
     '''
     pix_in_sk = np.sum(sk)
+    # Shuffle the coordinates of the skeleton to loop over them in a random order
+    sk_coordinates = np.argwhere(sk)
+    np.random.shuffle(sk_coordinates)
+    # Initialize the mask of all squares
     all_squares = np.zeros_like(sk, dtype=np.bool8)
     added_pix = 0
-    attempts = 0
+    idx = 0
     overshoots = 0
-    # Loop until the total number of pixels in all squares approaches the threshold or the maximum number of attempts is reached
-    while overshoots < 100 and attempts < pix_in_sk and added_pix < sk_max_pix * 0.9:
-        attempts += 1
+    # Loop until the total number of pixels in all squares approaches the threshold or the end of all pixels in the skeleton is reached
+    while overshoots < 100 and idx < pix_in_sk:
         # Pick a random square from the skeleton
-        square = pick_square(sk, sq_size)
+        current_coordinate = sk_coordinates[idx]
+        idx += 1        
+        square = get_square(sk, current_coordinate, sq_size)
         pix_in_sq = np.sum(square)
         # If there are too few or too many pixels in the square, skip it
         if pix_in_sq < sq_pix_range[0] or pix_in_sq > sq_pix_range[1]:
@@ -196,6 +201,7 @@ def pick_sk_squares(sk, sk_max_pix=20, sq_size=20, sq_pix_range=(10, 40)):
         else:
             all_squares = np.logical_or(all_squares, square)
             added_pix = np.sum(all_squares)
+
     # If no squares were added, try again with smaller squares and a range starting at a lower value (allowing fewer pixels in a square)
     if added_pix == 0 and sq_pix_range[0] > 1:
         print("Adjusting square size and range to", sq_size//2, (sq_pix_range[0]//2, sq_pix_range[1]))
@@ -222,6 +228,22 @@ def pick_square(mask, sq_size=20):
     square_mask[random_point[0]-sq_size//2:random_point[0]+sq_size//2, random_point[1]-sq_size//2:random_point[1]+sq_size//2] = mask[random_point[0]-sq_size//2:random_point[0]+sq_size//2, random_point[1]-sq_size//2:random_point[1]+sq_size//2]
     return square_mask
 
+def get_square(mask, coord, sq_size=20):
+    '''
+    Take a point on a mask (= True) and return the part inside a square around it.
+    Input:
+        mask (numpy array): the mask
+        coord (numpy array): the coordinates of the center of the square
+        sq_size (int): the size of the squares (side length)
+    Output:
+        square_mask (numpy array): the mask inside the square
+    '''
+    # Create an empty image to draw the square on
+    square_mask = np.zeros_like(mask)
+    # Draw the square on the image
+    square_mask[coord[0]-sq_size//2:coord[0]+sq_size//2, coord[1]-sq_size//2:coord[1]+sq_size//2] = mask[coord[0]-sq_size//2:coord[0]+sq_size//2, coord[1]-sq_size//2:coord[1]+sq_size//2]
+    return square_mask
+
 def create_lines(sk, gt_mask, lines_max_pix=20, line_pix_range=(10, 40)):
     '''
     Create lines leading from a skeleton to the edge of the mask.
@@ -235,15 +257,20 @@ def create_lines(sk, gt_mask, lines_max_pix=20, line_pix_range=(10, 40)):
     '''
     # Initialize the mask of all lines
     pix_in_sk = np.sum(sk)
+    # Shuffle the coordinates of the skeleton to loop over them in a random order
+    sk_coordinates = np.argwhere(sk)
+    np.random.shuffle(sk_coordinates)
+    # Initialize the mask of all lines    
     all_lines = np.zeros_like(gt_mask, dtype=np.bool8)
     added_pix = 0
-    attempts = 0
+    idx = 0
     overshoots = 0
-    # Loop until the pixels in all lines approach the threshold or the maximum number of attempts is reached
-    while overshoots < 100 and attempts < pix_in_sk:
-        attempts += 1
+    # Loop until the pixels in all lines approach the threshold or the end of all pixels in the skeleton is reached
+    while overshoots < 100 and idx < pix_in_sk:
         # Draw a line from the skeleton to the edge of the mask
-        line = draw_line(sk, gt_mask, dist_to_edge=2)
+        current_coordinate = sk_coordinates[idx]
+        idx += 1
+        line = get_line(sk, current_coordinate, gt_mask, dist_to_edge=2)
         pix_in_line = np.sum(line)
         # If the line is too short or too long, skip it
         if pix_in_line < line_pix_range[0] or pix_in_line > line_pix_range[1]:
@@ -287,6 +314,27 @@ def draw_line(sk_mask, gt_mask, dist_to_edge=5):
         eroded_gt_mask = gt_mask
     # Find the shortest path from the random point to the edge of the mask and return the mask of the path
     shortest_path = point_to_edge(random_point, eroded_gt_mask)
+    shortest_path_mask = shortest_path == 1
+    return shortest_path_mask
+
+def get_line(sk_mask, coord, gt_mask, dist_to_edge=2):
+    '''
+    Take a point on the skeleton (= True in the mask) and draw a line to the nearest edge point of the ground truth mask.
+    Input:
+        sk_mask (numpy array): the skeleton mask
+        coord (tuple): the coordinates of the starting point
+        gt_mask (numpy array): the ground truth mask
+        dist_to_edge (int): the distance of the line to the edge
+    Output:
+        shortest_path_mask (numpy array): the mask of the shortest path
+    '''
+    # Erode the gt_mask, so that the line will have a distance to the edge
+    if dist_to_edge:
+        eroded_gt_mask = erosion(gt_mask, square(dist_to_edge*2))
+    else:
+        eroded_gt_mask = gt_mask
+    # Find the shortest path from the random point to the edge of the mask and return the mask of the path
+    shortest_path = point_to_edge(coord, eroded_gt_mask)
     shortest_path_mask = shortest_path == 1
     return shortest_path_mask
 
