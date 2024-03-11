@@ -24,23 +24,26 @@ for img_num in range(0, 540):
     for bin in bins:
         for s in suff:
             print(f"IMG_{img_num}_{bin}_{s}")
-            scribbles, perc_labelled = create_cellpose_scribble(folder_path, img_num, bin=bin, mode=mode, save_res=True, suff=s, show_res=False, print_res=True)
+            scribbles, perc_labelled = create_cellpose_scribble(folder_path, img_num, bin=bin, mode=mode, save_res=True, suff=s, show_res=False, print_steps=True)
 
-# Create predictions with convpaint
+# Create predictions
 layer_list = [0]
 scalings = [1, 2]
 for img_num in range(0, 540):
     for bin in bins:
         for s in suff:
-            pred = pred_cellpose_convpaint(folder_path, img_num, mode=mode, bin=bin, suff=s, layer_list=layer_list, scalings=scalings, save_res=True, show_res=False)
+            pred_cellpose_convpaint(folder_path, img_num, mode=mode, bin=bin, suff=s, layer_list=layer_list, scalings=scalings, save_res=True, show_res=False)
+            pred_cellpose_ilastik(folder_path, img_num, mode=mode, bin=bin, suff=s, save_res=True, show_res=False)
 
 # Analyse results
-df = pd.DataFrame(columns=['img_num', 'mode', 'bin', 'suffix', 'class_1_pix_gt', 'class_2_pix_gt', 'pix_labelled', 'class_1_pix_labelled', 'class_2_pix_labelled', 'pix_in_img', 'perc. labelled', 'accuracy', 'image', 'ground truth', 'scribbles', 'prediction'])
+prediction_types = ["convpaint", "ilastik"]
+df = pd.DataFrame(columns=['img_num', 'prediction type', 'scribbles mode', 'scribbles bin', 'suffix', 'class_1_pix_gt', 'class_2_pix_gt', 'pix_labelled', 'class_1_pix_labelled', 'class_2_pix_labelled', 'pix_in_img', 'perc. labelled', 'accuracy', 'image', 'ground truth', 'scribbles', 'prediction'])
 for img_num in range(0, 540):
     for bin in bins:
         for s in suff:
-            res = analyse_cellpose_single_file(folder_path, img_num, mode=mode, bin=bin, suff=s, pred_tag="convpaint", show_res=False)
-            df = pd.concat([df, res], ignore_index=True)
+            for pred in prediction_types:
+                res = analyse_cellpose_single_file(folder_path, img_num, mode=mode, bin=bin, suff=s, pred_tag=pred, show_res=False)
+                df = pd.concat([df, res], ignore_index=True)
 # Save numerical data to csv
 time_stamp = datetime.now().strftime("%y%m%d%H%M%S")
 file_name = f"test_labels_vs_acc_{time_stamp}.csv"
