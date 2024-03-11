@@ -141,8 +141,14 @@ def analyse_cellpose_single_file(folder_path, img_num, mode="all", bin=0.1, suff
     prediction = img_data["pred"]
 
     # Calculate stats
+    class_1_pix_gt = np.sum(ground_truth == 1)
+    class_2_pix_gt = np.sum(ground_truth == 2)
+    pix_labelled = np.sum(labels>0)
+    class_1_pix_labelled = np.sum(labels == 1)
+    class_2_pix_labelled = np.sum(labels == 2)
+    pix_in_img = (labels.shape[0] * labels.shape[1])
+    perc_labelled = pix_labelled / pix_in_img * 100
     acc = np.mean(ground_truth == prediction)
-    perc_labelled = np.sum(labels>0) / (labels.shape[0] * labels.shape[1]) * 100
 
     if show_res:
         image = img_data["img"]
@@ -153,14 +159,21 @@ def analyse_cellpose_single_file(folder_path, img_num, mode="all", bin=0.1, suff
         v.add_labels(labels)
         v.add_labels(prediction)
 
-    res = pd.DataFrame({'group': f"{str(img_num)}_{mode}_{str(bin)}",
+    res = pd.DataFrame({'img_num': img_num,
+                        'mode': mode,
+                        'bin': bin,
+                        'suffix': suff,
+                        'class_1_pix_gt': class_1_pix_gt,
+                        'class_2_pix_gt': class_2_pix_gt,
+                        'pix_labelled': pix_labelled,
+                        'class_1_pix_labelled': class_1_pix_labelled,
+                        'class_2_pix_labelled': class_2_pix_labelled,
+                        'pix_in_img': pix_in_img,
+                        'perc. labelled': perc_labelled,
+                        'accuracy': acc,
                         'image': image_path,
                         'ground truth': ground_truth_path,
                         'scribbles': scribbles_path,
-                        'prediction': pred_path,
-                        'mode': mode,
-                        'bin': bin,
-                        'perc. labelled': perc_labelled,
-                        'accuracy': acc}, index=[0])
+                        'prediction': pred_path,}, index=[0])
     
     return res
