@@ -24,7 +24,7 @@ for img_num in range(0, 540):
     for bin in bins:
         for s in suff:
             print(f"IMG_{img_num}_{bin}_{s}")
-            scribbles, perc_labelled = create_cellpose_scribble(folder_path, img_num, bin=bin, mode=mode, save_res=True, suff=s, show_res=False)
+            scribbles, perc_labelled = create_cellpose_scribble(folder_path, img_num, bin=bin, mode=mode, save_res=True, suff=s, show_res=False, print_res=True)
 
 # Create predictions with convpaint
 layer_list = [0]

@@ -6,6 +6,7 @@ import napari
 
 from scribbles_creator import create_even_scribble
 from convpaint_helpers import *
+from ilastik_helpers import pixel_classification_ilastik
 
 def get_cellpose_img_data(folder_path, img_num, load_img=False, load_gt=False, load_scribbles=False, mode="NA", bin="NA", suff=False, load_pred=False, pred_tag="convpaint"):
     
@@ -16,7 +17,7 @@ def get_cellpose_img_data(folder_path, img_num, load_img=False, load_gt=False, l
 
     img_path = folder_path + img_base + f"_img.png"
     if load_img:
-        img = np.array(Image.open(img_path))
+        img = np.array(Image.open(img_path))[:,:,1]
     else:
         img = None
 
@@ -73,13 +74,13 @@ def create_cellpose_gt(folder_path, img_num, save_res=True, show_res=False):
 
 
 
-def create_cellpose_scribble(folder_path, img_num, bin=0.1, sq_scaling=False, mode="all", save_res=False, suff=False, show_res=False):
+def create_cellpose_scribble(folder_path, img_num, bin=0.1, sq_scaling=False, mode="all", save_res=False, suff=False, show_res=False, print_steps=False):
 
     # Load the ground truth and get the scribbles path for saving; note that if we want to show the results, we also load the image
     img_data = get_cellpose_img_data(folder_path, img_num, load_img=show_res, load_gt=True, mode=mode, bin=bin, suff=suff)
     ground_truth = img_data["gt"]
     # Create the scribbles
-    scribbles = create_even_scribble(ground_truth, max_perc=bin, sq_scaling=sq_scaling, mode=mode)
+    scribbles = create_even_scribble(ground_truth, max_perc=bin, sq_scaling=sq_scaling, mode=mode, print_steps=print_steps)
     perc_labelled = np.sum(scribbles>0) / (scribbles.shape[0] * scribbles.shape[1]) * 100
 
     if save_res:
@@ -102,7 +103,7 @@ def create_cellpose_scribble(folder_path, img_num, bin=0.1, sq_scaling=False, mo
 
 def pred_cellpose_convpaint(folder_path, img_num, mode="NA", bin="NA", suff=False, layer_list=[0], scalings=[1,2], save_res=False, show_res=False):
     # Load the image, labels and the ground truth
-    img_data = get_cellpose_img_data(folder_path, img_num, load_img=True, load_gt=True, load_scribbles=True, mode=mode, bin=bin, suff=suff, load_pred=False)
+    img_data = get_cellpose_img_data(folder_path, img_num, load_img=True, load_gt=True, load_scribbles=True, mode=mode, bin=bin, suff=suff, load_pred=False, pred_tag="convpaintCh1")
     image = img_data["img"]
     labels = img_data["scribbles"]
     ground_truth = img_data["gt"]
@@ -121,7 +122,35 @@ def pred_cellpose_convpaint(folder_path, img_num, mode="NA", bin="NA", suff=Fals
         v = napari.Viewer()
         v.add_image(image)
         v.add_labels(ground_truth)
-        v.add_labels(prediction)
+        v.add_labels(prediction, name="convpaint")
+        v.add_labels(labels)
+
+    return prediction
+
+
+
+def pred_cellpose_ilastik(folder_path, img_num, mode="NA", bin="NA", suff=False, save_res=False, show_res=False):
+    # Load the image, labels and the ground truth
+    img_data = get_cellpose_img_data(folder_path, img_num, load_img=True, load_gt=True, load_scribbles=True, mode=mode, bin=bin, suff=suff, load_pred=False, pred_tag="ilastikCh1")
+    image = img_data["img"]
+    labels = img_data["scribbles"]
+    ground_truth = img_data["gt"]
+    
+    # Predict the image
+    prediction = pixel_classification_ilastik(image, labels)
+
+    if save_res:
+        # Save the scribble annotation as an image
+        pred_path = img_data["pred_path"]
+        pred_image = Image.fromarray(prediction)
+        pred_image.save(pred_path)
+
+    if show_res:
+        # Show the ground truth and the scribble annotation
+        v = napari.Viewer()
+        v.add_image(image)
+        v.add_labels(ground_truth)
+        v.add_labels(prediction, name="ilastik")
         v.add_labels(labels)
 
     return prediction
@@ -160,8 +189,9 @@ def analyse_cellpose_single_file(folder_path, img_num, mode="all", bin=0.1, suff
         v.add_labels(prediction)
 
     res = pd.DataFrame({'img_num': img_num,
-                        'mode': mode,
-                        'bin': bin,
+                        'prediction type': pred_tag,
+                        'scribbles mode': mode,
+                        'scribbles bin': bin,
                         'suffix': suff,
                         'class_1_pix_gt': class_1_pix_gt,
                         'class_2_pix_gt': class_2_pix_gt,
@@ -174,6 +204,6 @@ def analyse_cellpose_single_file(folder_path, img_num, mode="all", bin=0.1, suff
                         'image': image_path,
                         'ground truth': ground_truth_path,
                         'scribbles': scribbles_path,
-                        'prediction': pred_path,}, index=[0])
+                        'prediction': pred_path}, index=[0])
     
     return res
