@@ -84,10 +84,10 @@ def scribble_class(gt, class_val, scribble_width=1, sk_max_perc=0.05, sq_size=20
     # Check if a skeleton was created, raise an error if not
     if np.sum(prim_sk) == 0:
         raise ValueError(f"No skeleton was created for class {class_val}.")
-    # Calculate how many pixels of each skeleton are allowed in this class given the percentage; but ensure that at least two pixels are picked
+    # Calculate how many pixels of each skeleton are allowed in this class given the percentage; but ensure that at least one pixel is picked
     sk_max_pix = max(1, tot_class_pix * sk_max_perc / 100)
-    # Ensure that each square is allowed to as little pixels as the maximum total pixels in all squares
-    sq_pix_range = (min(sq_size//2, sk_max_pix), sq_size*2) if not sq_pix_range else sq_pix_range
+    # Ensure that each square is allowed to contain as little pixels as the maximum total pixels in all squares
+    sq_pix_range = (min(sq_size//2, int(sk_max_pix)), sq_size*2) if not sq_pix_range else sq_pix_range
     if print_steps:
         print(f"class {class_val}:")
         print(f"sk_max_pix: {sk_max_pix}, sq_size: {sq_size}, sk_pix_range: {sq_pix_range}")
@@ -105,13 +105,14 @@ def scribble_class(gt, class_val, scribble_width=1, sk_max_perc=0.05, sq_size=20
         both_sk_squares = np.logical_or(prim_sk_squares, sec_sk_squares)
     # If lines are needed, create and pick them (lines leading from the primary skeleton to the edge of the mask)
     if mode in ("lines", "all"):
-        # Calculate how many pixels of lines are allowed in this class given the percentage; but ensure that at least two pixels are picked
+        # Calculate how many pixels of lines are allowed in this class given the percentage; but ensure that at least one pixel is picked
         lines_max_pix = max(1, tot_class_pix * lines_max_perc / 100)
         # Ensure that the line is allowed to be as short as the maximum total pixels in all lines
-        line_pix_range = (min(sq_size//2, lines_max_pix), sq_size*2) if not line_pix_range else line_pix_range 
-        lines = create_lines(prim_sk, gt_class_mask, lines_max_pix, line_pix_range)
+        line_pix_range = (min(sq_size//2, int(lines_max_pix)), sq_size*2) if not line_pix_range else line_pix_range
         if print_steps:
             print(f"lines_max_pix: {lines_max_pix}, line_pix_range: {line_pix_range}")
+        lines = create_lines(prim_sk, gt_class_mask, lines_max_pix, line_pix_range)
+        if print_steps:
             print(f"   lines: {np.sum(lines)} = {np.sum(lines)/np.sum(gt_class_mask)*100:.2f}%")
     if mode =="all":
         lines_and_squares = np.logical_or(lines, both_sk_squares)
@@ -200,11 +201,13 @@ def pick_sk_squares(sk, sk_max_pix=20, sq_size=20, sq_pix_range=(10, 40)):
         else:
             all_squares = np.logical_or(all_squares, square)
             added_pix = np.sum(all_squares)
-
     # If no squares were added, try again with smaller squares and a range starting at a lower value (allowing fewer pixels in a square)
-    if added_pix == 0 and sq_pix_range[0] > 1:
-        print("Adjusting square size and range to", sq_size//2, (sq_pix_range[0]//2, sq_pix_range[1]))
-        all_squares = pick_sk_squares(sk, sk_max_pix, sq_size//2, (sq_pix_range[0]//2, sq_pix_range[1]))
+    if added_pix == 0 and sq_size >= 2:
+        # Reduce the square size, but ensure that it is at least 1
+        sq_size = sq_size//2
+        sq_pix_range = (min(sq_size//2, int(sk_max_pix)), sq_pix_range[1])
+        print("Adjusting square size and range to", sq_size, sq_pix_range)
+        all_squares = pick_sk_squares(sk, sk_max_pix, sq_size, sq_pix_range)
     return all_squares
 
 def pick_square(mask, sq_size=20):
@@ -240,7 +243,11 @@ def get_square(mask, coord, sq_size=20):
     # Create an empty image to draw the square on
     square_mask = np.zeros_like(mask)
     # Draw the square on the image
-    square_mask[coord[0]-sq_size//2:coord[0]+sq_size//2, coord[1]-sq_size//2:coord[1]+sq_size//2] = mask[coord[0]-sq_size//2:coord[0]+sq_size//2, coord[1]-sq_size//2:coord[1]+sq_size//2]
+    if sq_size >= 2:
+        square_mask[coord[0]-sq_size//2:coord[0]+sq_size//2, coord[1]-sq_size//2:coord[1]+sq_size//2] = mask[coord[0]-sq_size//2:coord[0]+sq_size//2, coord[1]-sq_size//2:coord[1]+sq_size//2]
+    # If the square size is too small, just pick the pixel (otherwise it would return an empty mask)
+    else:
+        square_mask[coord[0], coord[1]] = mask[coord[0], coord[1]]
     return square_mask
 
 def create_lines(sk, gt_mask, lines_max_pix=20, line_pix_range=(10, 40)):
@@ -269,7 +276,7 @@ def create_lines(sk, gt_mask, lines_max_pix=20, line_pix_range=(10, 40)):
         # Draw a line from the skeleton to the edge of the mask
         current_coordinate = sk_coordinates[idx]
         idx += 1
-        line = get_line(sk, current_coordinate, gt_mask, dist_to_edge=2)
+        line = get_line(current_coordinate, gt_mask, dist_to_edge=2)
         pix_in_line = np.sum(line)
         # If the line is too short or too long, skip it
         if pix_in_line < line_pix_range[0] or pix_in_line > line_pix_range[1]:
@@ -285,8 +292,9 @@ def create_lines(sk, gt_mask, lines_max_pix=20, line_pix_range=(10, 40)):
             added_pix = np.sum(all_lines)
     # If no lines were added, try again with a range starting at a lower value (allowing fewer pixels per line)
     if added_pix == 0 and line_pix_range[0] > 1:
-        print("Adjusting line range to" , (line_pix_range[0]//2, line_pix_range[1]))
-        all_lines = create_lines(sk, gt_mask, lines_max_pix, (line_pix_range[0]//2, line_pix_range[1]))
+        line_pix_range = (line_pix_range[0]//2, line_pix_range[1])
+        print("Adjusting line range to" , line_pix_range)
+        all_lines = create_lines(sk, gt_mask, lines_max_pix, line_pix_range)
     return all_lines
 
 def draw_line(sk_mask, gt_mask, dist_to_edge=5):
@@ -316,11 +324,10 @@ def draw_line(sk_mask, gt_mask, dist_to_edge=5):
     shortest_path_mask = shortest_path == 1
     return shortest_path_mask
 
-def get_line(sk_mask, coord, gt_mask, dist_to_edge=2):
+def get_line(coord, gt_mask, dist_to_edge=2):
     '''
     Take a point on the skeleton (= True in the mask) and draw a line to the nearest edge point of the ground truth mask.
     Input:
-        sk_mask (numpy array): the skeleton mask
         coord (tuple): the coordinates of the starting point
         gt_mask (numpy array): the ground truth mask
         dist_to_edge (int): the distance of the line to the edge
