@@ -89,7 +89,7 @@ def scribble_class(gt, class_val, scribble_width=1, sk_max_perc=0.05, sq_size=20
     # Ensure that each square is allowed to contain as little pixels as the maximum total pixels in all squares
     sq_pix_range = (min(sq_size//2, int(sk_max_pix)), sq_size*2) if not sq_pix_range else sq_pix_range
     if print_steps:
-        print(f"class {class_val}:")
+        print(f"CLASS {class_val}:")
         print(f"sk_max_pix: {sk_max_pix}, sq_size: {sq_size}, sk_pix_range: {sq_pix_range}")
     # If the primary skeleton is needed, pick squares of it
     if mode in ("prim_sk", "both_sk", "all"):
