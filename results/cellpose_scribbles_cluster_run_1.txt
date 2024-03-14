@@ -1,0 +1,94 @@
+IMG_176_0.01_a
+class 1:
+sk_max_pix: 7.4446666666666665, sq_size: 8, sk_pix_range: (4, 16)
+   prim_sk_squares: 7 = 0.00%
+   sec_sk_squares: 7 = 0.00%
+lines_max_pix: 7.4446666666666665, line_pix_range: (4, 16)
+   lines: 5 = 0.00%
+TOTAL pix: 19 = 0.01%
+class 2:
+sk_max_pix: 1.2934666666666665, sq_size: 8, sk_pix_range: (1.2934666666666665, 16)
+Adjusting square size and range to 4 (0.0, 16)
+   prim_sk_squares: 0 = 0.00%
+Adjusting square size and range to 4 (0.0, 16)
+   sec_sk_squares: 0 = 0.00%
+Adjusting line range to (0.0, 16)
+lines_max_pix: 1.2934666666666665, line_pix_range: (1.2934666666666665, 16)
+   lines: 0 = 0.00%
+TOTAL pix: 0 = 0.00%
+
+
+IMG_245_0.01_d
+class 1:
+sk_max_pix: 7.331133333333334, sq_size: 8, sk_pix_range: (4, 16)
+   prim_sk_squares: 4 = 0.00%
+   sec_sk_squares: 7 = 0.00%
+lines_max_pix: 7.331133333333334, line_pix_range: (4, 16)
+   lines: 6 = 0.00%
+TOTAL pix: 17 = 0.01%
+class 2:
+sk_max_pix: 1.4070000000000003, sq_size: 8, sk_pix_range: (1.4070000000000003, 16)
+Adjusting square size and range to 4 (0.0, 16)
+   prim_sk_squares: 0 = 0.00%
+Adjusting square size and range to 4 (0.0, 16)
+   sec_sk_squares: 0 = 0.00%
+Adjusting line range to (0.0, 16)
+lines_max_pix: 1.4070000000000003, line_pix_range: (1.4070000000000003, 16)
+   lines: 0 = 0.00%
+TOTAL pix: 0 = 0.00%
+
+
+IMG_272_0.01_a
+class 1:
+sk_max_pix: 4.348533333333333, sq_size: 6, sk_pix_range: (3, 12)
+   prim_sk_squares: 3 = 0.00%
+Adjusting square size and range to 3 (1, 12)
+   sec_sk_squares: 4 = 0.00%
+lines_max_pix: 4.348533333333333, line_pix_range: (3, 12)
+   lines: 4 = 0.00%
+TOTAL pix: 11 = 0.01%
+class 2:
+sk_max_pix: 1, sq_size: 6, sk_pix_range: (1, 12)
+   prim_sk_squares: 0 = 0.00%
+   sec_sk_squares: 0 = 0.00%
+lines_max_pix: 1, line_pix_range: (1, 12)
+   lines: 0 = 0.00%
+TOTAL pix: 0 = 0.00%
+
+
+IMG_383_0.01_c
+class 1:
+sk_max_pix: 7.970600000000001, sq_size: 8, sk_pix_range: (4, 16)
+   prim_sk_squares: 7 = 0.00%
+   sec_sk_squares: 7 = 0.00%
+lines_max_pix: 7.970600000000001, line_pix_range: (4, 16)
+   lines: 5 = 0.00%
+TOTAL pix: 19 = 0.01%
+class 2:
+sk_max_pix: 1, sq_size: 8, sk_pix_range: (1, 16)
+   prim_sk_squares: 0 = 0.00%
+   sec_sk_squares: 0 = 0.00%
+lines_max_pix: 1, line_pix_range: (1, 16)
+   lines: 0 = 0.00%
+TOTAL pix: 0 = 0.00%
+
+
+IMG_419_0.01_b
+class 1:
+sk_max_pix: 4.536133333333334, sq_size: 7, sk_pix_range: (3, 14)
+Adjusting square size and range to 3 (1, 14)
+   prim_sk_squares: 4 = 0.00%
+   sec_sk_squares: 3 = 0.00%
+lines_max_pix: 4.536133333333334, line_pix_range: (3, 14)
+   lines: 4 = 0.00%
+TOTAL pix: 11 = 0.01%
+class 2:
+sk_max_pix: 2.0174666666666665, sq_size: 7, sk_pix_range: (2.0174666666666665, 14)
+Adjusting square size and range to 3 (1.0, 14)
+   prim_sk_squares: 2 = 0.00%
+Adjusting square size and range to 3 (1.0, 14)
+   sec_sk_squares: 2 = 0.00%
+Adjusting line range to (1.0, 14)
+lines_max_pix: 2.0174666666666665, line_pix_range: (2.0174666666666665, 14)
+   lines: 0 = 0.00%
+TOTAL pix: 4 = 0.01%
