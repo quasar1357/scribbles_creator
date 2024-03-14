@@ -23,7 +23,7 @@ suff = all_suff[:5]
 for img_num in range(0, 540):
     for bin in bins:
         for s in suff:
-            print(f"IMG_{img_num}_{bin}_{s}")
+            print(f"IMG {img_num}: {bin}_{s}")
             create_cellpose_scribble(folder_path, img_num, bin=bin, mode=mode, save_res=True, suff=s, show_res=False, print_steps=True)
             print("\n")
 
