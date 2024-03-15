@@ -29,15 +29,15 @@ def get_cellpose_img_data(folder_path, img_num, load_img=False, load_gt=False, l
 
     suff = "" if not suff else "_" + suff
 
-    scribbles_path = folder_path + img_base + f"_scribbles_{mode}_{bin}{suff}.png"
+    scribbles_path = folder_path + img_base + f"_scribbles_{mode}_{bin_for_file(bin)}{suff}.png"
     if load_scribbles:
         scribbles = np.array(Image.open(scribbles_path))
     else:
         scribbles = None
 
-    pred_path = folder_path + img_base + f"_{pred_tag}_{mode}_{bin}{suff}.png"
+    pred_path = folder_path + img_base + f"_{pred_tag}_{mode}_{bin_for_file(bin)}{suff}.png"
     if load_pred:
-        pred = np.array(Image.open(pred_path))  
+        pred = np.array(Image.open(pred_path))
     else:
         pred = None
 
@@ -45,6 +45,11 @@ def get_cellpose_img_data(folder_path, img_num, load_img=False, load_gt=False, l
                 "img": img, "gt": ground_truth, "scribbles": scribbles, "pred": pred}
 
     return img_data
+
+
+
+def bin_for_file(bin):
+    return str(int(bin*1000)).zfill(5)
 
 
 

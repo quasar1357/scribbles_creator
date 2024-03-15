@@ -13,3 +13,20 @@ min <= max_tot < line/square < max --> overshoot! --> decrease line/square
 max < min --> makes no sense
 max_tot < min --> min will be set to max_tot
 
+
+
+
+
+
+
+
+
+
+
+
+	bei squares: round statt //2 (und schauen dass innerhalb)
+	logik bei squares wie bei lines durchspielen (unterschied: square size kann angepasst werden; effekt ähnlich zu distance_to_edge? aber eben doch anders...)
+	lines: was tun, wenn keine gepickt werden kann (random point on sk?)
+	Was, wenn alle Lines zu lange? --> increase (double?) distance to edge?
+	Was, wenn max_pix für squares/lines < 1 und/oder
+	Was wenn am Schluss picked > max_picked? (notably cases wo max_pix < 3 --> sq/lines max auf 1 erhöht --> too many)

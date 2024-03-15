@@ -26,7 +26,8 @@ def create_even_scribble(ground_truth, max_perc=0.2, sq_scaling=False, mode="all
     # Generate the scribble annotation for the ground truth
     scribbles = create_scribble(ground_truth, scribble_width=scribble_width, sk_max_perc=max_perc_per_type, sq_size=sq_size, sq_pix_range=False, lines_max_perc=max_perc_per_type, line_pix_range=False, mode=mode, print_steps=print_steps)
 
-    # Handle edge cases where too many pixels were picked (should only happen if the minimum of one pixel was picked per scribble type, even though this pushed the total percentage above the maximum)
+    # Handle edge cases where too many pixels were picked
+    # (Should only happen if the total maximum is <3 and the minimum of one pixel was picked per scribble type, even though this pushed the total percentage above the maximum)
     # Do this for each class (= value) in the ground truth
     for class_val in set(ground_truth.flatten()):
         # Skip the background class
@@ -113,7 +114,7 @@ def scribble_class(gt, class_val, scribble_width=1, sk_max_perc=0.05, sq_size=20
     if np.sum(prim_sk) == 0:
         raise ValueError(f"No skeleton was created for class {class_val}.")
 
-    # PICK SKELETONS
+    # PICK SKELETON SQUARES
     if mode in ("prim_sk", "sec_sk", "both_sk", "all"):
         # Calculate how many pixels of each skeleton are allowed in this class given the percentage
         sk_max_pix = tot_class_pix * sk_max_perc / 100
@@ -195,7 +196,7 @@ def double_sk_class(gt_mask, closing_prim=0, closing_sec=0):
     prim_sk = skeletonize(gt_mask, method='lee') != 0
     if closing_prim: prim_sk = binary_closing(prim_sk, square(closing_prim))
     
-    # Create a dilated version of the primary skeleton for generating the secondary skeleton (otherwise it interprets it as gaps in the primary skeleton)
+    # Create a dilated version of the primary skeleton for generating the secondary skeleton (otherwise it interprets sees gaps in the primary skeleton)
     prim_sk_dilated = binary_dilation(prim_sk, square(3))
     # Add the dilated skeleton to the ground truth mask
     gt_mask2d_with_prim_sk[prim_sk_dilated] = False
