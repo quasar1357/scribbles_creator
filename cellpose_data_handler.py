@@ -6,7 +6,7 @@ import napari
 
 from scribbles_creator import create_even_scribble
 from convpaint_helpers import *
-from ilastik_helpers import pixel_classification_ilastik
+from ilastik_helpers import pixel_classification_ilastik, pixel_classification_ilastik_multichannel
 
 def get_cellpose_img_data(folder_path, img_num, load_img=False, load_gt=False, load_scribbles=False, mode="NA", bin="NA", suff=False, load_pred=False, pred_tag="convpaint"):
     
@@ -142,7 +142,10 @@ def pred_cellpose_ilastik(folder_path, img_num, mode="NA", bin="NA", suff=False,
     ground_truth = img_data["gt"]
     
     # Predict the image
-    prediction = pixel_classification_ilastik(image, labels)
+    if len(image.shape) == 3:
+        prediction = pixel_classification_ilastik_multichannel(image, labels)
+    else:
+        prediction = pixel_classification_ilastik(image, labels)
 
     if save_res:
         # Save the scribble annotation as an image
