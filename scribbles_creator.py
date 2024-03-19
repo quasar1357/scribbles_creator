@@ -272,7 +272,8 @@ def get_square(mask, coord, sq_size=20):
     square_mask = np.zeros_like(mask)
     # Draw the square on the image
     red = int(np.floor(sq_size/2))
-    inc = int(np.ceil(sq_size/2))
+    red = min(red, coord[0]) # Ensure that the square does not exceed the mask
+    inc = int(np.ceil(sq_size/2)) # Here, the index can exceed the mask because slicing will stop at the end of the mask
     square_mask[coord[0]-red:coord[0]+inc, coord[1]-red:coord[1]+inc] = mask[coord[0]-red:coord[0]+inc, coord[1]-red:coord[1]+inc]
     return square_mask
 
