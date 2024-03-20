@@ -106,7 +106,7 @@ def create_cellpose_scribble(folder_path, img_num, bin=0.1, sq_scaling=False, mo
 
 
 
-def pred_cellpose_convpaint(folder_path, img_num, mode="NA", bin="NA", suff=False, layer_list=[0], scalings=[1,2], save_res=False, show_res=False):
+def pred_cellpose_convpaint(folder_path, img_num, mode="NA", bin="NA", suff=False, layer_list=[0], scalings=[1,2], model="vgg16", save_res=False, show_res=False):
     # Load the image, labels and the ground truth
     img_data = get_cellpose_img_data(folder_path, img_num, load_img=True, load_gt=True, load_scribbles=True, mode=mode, bin=bin, suff=suff, load_pred=False, pred_tag="convpaint")
     image = img_data["img"]
@@ -114,7 +114,7 @@ def pred_cellpose_convpaint(folder_path, img_num, mode="NA", bin="NA", suff=Fals
     ground_truth = img_data["gt"]
     
     # Predict the image
-    prediction = selfpred_convpaint(image, labels, layer_list, scalings)
+    prediction = selfpred_convpaint(image, labels, layer_list, scalings, model)
 
     if save_res:
         # Save the scribble annotation as an image

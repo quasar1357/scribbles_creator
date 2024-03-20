@@ -1,12 +1,12 @@
 import numpy as np
 from napari_convpaint.conv_paint_utils import (Hookmodel, filter_image_multioutputs, get_features_current_layers, get_multiscale_features, train_classifier, predict_image)
 
-def selfpred_convpaint(image, labels, layer_list, scalings):
+def selfpred_convpaint(image, labels, layer_list, scalings, model="vgg16"):
     # Ensure right shape and dimension order
     if len(image.shape) == 3 and image.shape[2] == 3:
         image = np.moveaxis(image, -1, 0) # ConvPaint expects (C, H, W)
     # Define the model
-    model = Hookmodel(model_name='vgg16')
+    model = Hookmodel(model_name=model)
     # Ensure the layers are given as a list
     if isinstance(layer_list, int):
         layer_list = [layer_list]
