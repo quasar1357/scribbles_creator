@@ -1,4 +1,5 @@
 __pycache__
 archive
-imgs
+cellpose_train_imgs
+imgs_other
 results/450
