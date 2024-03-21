@@ -27,3 +27,24 @@ max_tot < min --> min will be set to max_tot
 	Was, wenn alle Lines zu lange? --> increase (double?) distance to edge?
 	Was, wenn max_pix für squares/lines < 1 und/oder
 	Was wenn am Schluss picked > max_picked? (notably cases wo max_pix < 3 --> sq/lines max auf 1 erhöht --> too many)
+--> done
+
+
+
+
+
+Increase efficiency for line creation:
+Lucien: ja du chasch
+- distance transform mache vom single pixel vom punkt A
+- die falschi maske inverte und mit der distance map multipliziere, das alli falsche pixel d value vor distance zum punkt A hei
+- ner chasch np.min() bruche zum di chlisnti distance ds fine
+- ner np.where == min zum luege wo überall das es pixel isch mit der min dist
+- ner chasch eich random eis pixel vo dere liste neh (wenns mehreri pünkt mit der gliche distanz git) oder ds erste element
+--> tested, not better than cdist
+
+
+
+
+
+
+

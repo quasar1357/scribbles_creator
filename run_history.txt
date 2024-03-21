@@ -11,3 +11,4 @@ cluster_run01 - ~100 images at a time (not complete), some scribbles not ideal i
 cluster_run02 - optimized for edge cases (min 1 pixels etc.; not sped up lines yet)
 	pred02 - some weird predicitons for convpaint ???
 	450 - test on image with werid prediciton for convpaint...
+	pred03 - predict again with fixed seed (= 123)

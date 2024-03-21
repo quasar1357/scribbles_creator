@@ -233,12 +233,12 @@ def pick_sk_squares(sk, sk_max_pix=20, sq_size=20, sq_pix_range=(10, 40)):
         idx += 1        
         square = get_square(sk, current_coordinate, sq_size)
         pix_in_sq = np.sum(square)
-        # If there are too few or too many pixels in the square, skip it
-        if pix_in_sq < sq_pix_range[0] or pix_in_sq > sq_pix_range[1]:
-            continue
         # If the square would push the total number of pixels in all squares above the maximum, skip it and count the overshoot
-        elif added_pix + pix_in_sq > sk_max_pix:
+        if added_pix + pix_in_sq > sk_max_pix:
             overshoots += 1
+            continue
+        # If there are too few or too many pixels in the square, skip it
+        elif pix_in_sq < sq_pix_range[0] or pix_in_sq > sq_pix_range[1]:
             continue
         # If the square is valid, add it to the mask of all lines
         else:
@@ -306,12 +306,12 @@ def create_lines(sk, gt_mask, lines_max_pix=20, line_pix_range=(10, 40), dist_to
         idx += 1
         line = get_line(current_coordinate, gt_mask, dist_to_edge=dist_to_edge)
         pix_in_line = np.sum(line)
-        # If the line is too short or too long, skip it
-        if pix_in_line < line_pix_range[0] or pix_in_line > line_pix_range[1]:
-            continue
         # If the line would push the total number of pixels on lines above the maximum, skip it and count the overshoot
-        elif added_pix + pix_in_line > lines_max_pix:
+        if added_pix + pix_in_line > lines_max_pix:
             overshoots += 1
+            continue
+        # If the line is too short or too long, skip it
+        elif pix_in_line < line_pix_range[0] or pix_in_line > line_pix_range[1]:
             continue
         # If the line is valid, add it to the mask of all lines
         else:
@@ -350,8 +350,7 @@ def get_line(coord, gt_mask, dist_to_edge=2):
     else:
         eroded_gt_mask = gt_mask
     # Find the shortest path from the random point to the edge of the mask and return the mask of the path
-    shortest_path = point_to_edge(coord, eroded_gt_mask)
-    shortest_path_mask = shortest_path == 1
+    shortest_path_mask = point_to_edge(coord, eroded_gt_mask)
     return shortest_path_mask
 
 def point_to_edge(start_point, segmentation_mask):
