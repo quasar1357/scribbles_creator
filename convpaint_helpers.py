@@ -1,7 +1,8 @@
 import numpy as np
-from napari_convpaint.conv_paint_utils import (Hookmodel, filter_image_multioutputs, get_features_current_layers, get_multiscale_features, train_classifier, predict_image)
+from napari_convpaint.conv_paint_utils import (Hookmodel, filter_image_multioutputs, get_features_current_layers, get_multiscale_features, train_classifier, predict_image, train_test_split)
+from sklearn.ensemble import RandomForestClassifier
 
-def selfpred_convpaint(image, labels, layer_list, scalings, model="vgg16"):
+def selfpred_convpaint(image, labels, layer_list, scalings, model="vgg16", random_state=None):
     # Ensure right shape and dimension order
     if len(image.shape) == 3 and image.shape[2] == 3:
         image = np.moveaxis(image, -1, 0) # ConvPaint expects (C, H, W)
@@ -19,8 +20,18 @@ def selfpred_convpaint(image, labels, layer_list, scalings, model="vgg16"):
     features, targets = get_features_current_layers(
         model=model, image=image, annotations=labels, scalings=scalings,
         order=1, use_min_features=False, image_downsample=1)
+
     # Train the classifier
-    random_forest = train_classifier(features, targets)
+    if random_state is None:
+        random_forest = train_classifier(features, targets)
+    else:
+        # Do RF training manually (copied from convpaint utils) to have access to seed/random_state:
+        X, X_test, y, y_test = train_test_split(features, targets,
+                                                test_size=0.2,
+                                                random_state=42)
+        random_forest = RandomForestClassifier(n_estimators=100, random_state = random_state)
+        random_forest.fit(X, y)
+
     # Predict on the image
     predicted = predict_image(
         image, model, random_forest, scalings=scalings,
