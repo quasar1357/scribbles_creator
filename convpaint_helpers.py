@@ -3,9 +3,8 @@ from napari_convpaint.conv_paint_utils import (Hookmodel, filter_image_multioutp
 from sklearn.ensemble import RandomForestClassifier
 
 def selfpred_convpaint(image, labels, layer_list, scalings, model="vgg16", random_state=None):
-    # Ensure right shape and dimension order
-    if len(image.shape) == 3 and image.shape[2] == 3:
-        image = np.moveaxis(image, -1, 0) # ConvPaint expects (C, H, W)
+    if len(image.shape) == 3 and image.shape[2] < 4:
+        image = np.moveaxis(image, 2, 0) # Convpaint expects (C, H, W)
     # Define the model
     model = Hookmodel(model_name=model)
     # Ensure the layers are given as a list

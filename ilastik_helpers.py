@@ -41,8 +41,9 @@ def pixel_classification_ilastik(image, labels, filter_set=filter_set):
 
 
 def pixel_classification_ilastik_multichannel(image, labels, filter_set=filter_set):
-    """Pixel classification for multichannel images. Expects 
-    image to be a numpy array with shape (x, y, c)"""
+    """Pixel classification for multichannel images."""
+    if len(image.shape) == 3 and image.shape[0] < 4:
+        image = np.moveaxis(image, 0, -1) # Ilastik expects (H, W, C)
     for c in range(image.data.shape[2]):
         feature_map = filter_set.transform(np.asarray(image[:,:,c]))
         if c == 0:

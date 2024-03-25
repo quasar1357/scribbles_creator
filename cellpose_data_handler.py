@@ -7,6 +7,8 @@ import napari
 from scribbles_creator import create_even_scribble
 from convpaint_helpers import *
 from ilastik_helpers import pixel_classification_ilastik, pixel_classification_ilastik_multichannel
+from napari_convpaint.conv_paint_utils import compute_image_stats, normalize_image
+
 
 def get_cellpose_img_data(folder_path, img_num, load_img=False, load_gt=False, load_scribbles=False, mode="NA", bin="NA", suff=False, load_pred=False, pred_tag="convpaint"):
     
@@ -18,6 +20,7 @@ def get_cellpose_img_data(folder_path, img_num, load_img=False, load_gt=False, l
     img_path = folder_path + img_base + f"_img.png"
     if load_img:
         img = np.array(Image.open(img_path))#[:,:,1] # NOTE: If we only want to use 1 channel, we can filter here
+        img = preprocess_img(img)
     else:
         img = None
 
@@ -50,6 +53,33 @@ def get_cellpose_img_data(folder_path, img_num, load_img=False, load_gt=False, l
 
 def bin_for_file(bin):
     return str(int(bin*1000)).zfill(5)
+
+
+
+def preprocess_img(img):
+    # Ensure right shape and dimension order    
+    if len(img.shape) == 3 and img.shape[2] == 3:
+        img = np.moveaxis(img, -1, 0) # ConvPaint expects (C, H, W)
+
+    # If only one channel contains values, extract it
+    if len(img.shape) == 3 and img.shape[0] == 3:
+        # Check which channels contain values
+        img_r_is_active = np.count_nonzero(img[0])>0
+        img_g_is_active = np.count_nonzero(img[1])>0
+        img_b_is_active = np.count_nonzero(img[2])>0
+        num_active = sum((img_r_is_active, img_g_is_active, img_b_is_active))
+        # Remove the inactive channel(s)
+        if num_active < 3:
+            img = img[[img_r_is_active, img_g_is_active, img_b_is_active]]
+            print(f"Active channels: R={img_r_is_active}, G={img_g_is_active}, B={img_b_is_active} --> Removed {3-num_active} channel(s) --> shape: {img.shape}")
+        else:
+            print("All channels contain values.")
+
+    # Normalize the image
+    img_mean, img_std = compute_image_stats(img, ignore_n_first_dims=img.ndim-2)
+    img = normalize_image(img, img_mean, img_std)
+    
+    return img
 
 
 
@@ -142,7 +172,7 @@ def pred_cellpose_ilastik(folder_path, img_num, mode="NA", bin="NA", suff=False,
     ground_truth = img_data["gt"]
     
     # Predict the image
-    if len(image.shape) == 3:
+    if len(image.shape) > 1:
         prediction = pixel_classification_ilastik_multichannel(image, labels)
     else:
         prediction = pixel_classification_ilastik(image, labels)
