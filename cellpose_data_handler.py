@@ -58,11 +58,11 @@ def bin_for_file(bin):
 
 def preprocess_img(img):
     # Ensure right shape and dimension order    
-    if len(img.shape) == 3 and img.shape[2] < 4:
+    if img.ndim == 3 and img.shape[2] < 4:
         img = np.moveaxis(img, -1, 0) # ConvPaint expects (C, H, W)
 
     # If some channel(s) contain(s) no values, remove them
-    if len(img.shape) == 3 and img.shape[0] == 3:
+    if img.ndim == 3 and img.shape[0] == 3:
         # Check which channels contain values
         img_r_is_active = np.count_nonzero(img[0])>0
         img_g_is_active = np.count_nonzero(img[1])>0
@@ -180,7 +180,7 @@ def pred_cellpose_ilastik(folder_path, img_num, mode="NA", bin="NA", suff=False,
     ground_truth = img_data["gt"]
     
     # Predict the image
-    if len(image.shape) > 1:
+    if image.ndim > 1:
         prediction = pixel_classification_ilastik_multichannel(image, labels)
     else:
         prediction = pixel_classification_ilastik(image, labels)
