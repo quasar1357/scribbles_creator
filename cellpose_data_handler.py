@@ -58,10 +58,10 @@ def bin_for_file(bin):
 
 def preprocess_img(img):
     # Ensure right shape and dimension order    
-    if len(img.shape) == 3 and img.shape[2] == 3:
+    if len(img.shape) == 3 and img.shape[2] < 4:
         img = np.moveaxis(img, -1, 0) # ConvPaint expects (C, H, W)
 
-    # If only one channel contains values, extract it
+    # If some channel(s) contain(s) no values, remove them
     if len(img.shape) == 3 and img.shape[0] == 3:
         # Check which channels contain values
         img_r_is_active = np.count_nonzero(img[0])>0
@@ -70,7 +70,11 @@ def preprocess_img(img):
         num_active = sum((img_r_is_active, img_g_is_active, img_b_is_active))
         # Remove the inactive channel(s)
         if num_active < 3:
+            # If there are 2 active channels, only take those
             img = img[[img_r_is_active, img_g_is_active, img_b_is_active]]
+            # If there is just one, only pick the one and reduce the dimensions
+            if num_active == 1:
+                img = np.squeeze(img, axis=0)
             print(f"Active channels: R={img_r_is_active}, G={img_g_is_active}, B={img_b_is_active} --> Removed {3-num_active} channel(s) --> shape: {img.shape}")
         else:
             print("All channels contain values.")
@@ -138,11 +142,15 @@ def create_cellpose_scribble(folder_path, img_num, bin=0.1, sq_scaling=False, mo
 
 def pred_cellpose_convpaint(folder_path, img_num, mode="NA", bin="NA", suff=False, layer_list=[0], scalings=[1,2], model="vgg16", random_state=None, save_res=False, show_res=False):
     # Load the image, labels and the ground truth
-    img_data = get_cellpose_img_data(folder_path, img_num, load_img=True, load_gt=True, load_scribbles=True, mode=mode, bin=bin, suff=suff, load_pred=False, pred_tag="convpaint")
+    model_pref = f'_{model}' if model != 'vgg16' else ''
+    layer_pref = f'_l-{str(layer_list)[1:-1].replace(", ", "-")}'# if layer_list != [0] else ''
+    scalings_pref = f'_s-{str(scalings)[1:-1].replace(", ", "-")}'# if scalings != [1,2] else ''
+    pred_tag = f"convpaint{model_pref}{layer_pref}{scalings_pref}"
+    img_data = get_cellpose_img_data(folder_path, img_num, load_img=True, load_gt=True, load_scribbles=True, mode=mode, bin=bin, suff=suff, load_pred=False, pred_tag=pred_tag)
     image = img_data["img"]
     labels = img_data["scribbles"]
     ground_truth = img_data["gt"]
-    
+
     # Predict the image
     prediction = selfpred_convpaint(image, labels, layer_list, scalings, model, random_state)
 
