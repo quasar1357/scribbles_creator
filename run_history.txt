@@ -13,4 +13,4 @@ cluster_run02 - optimized for edge cases (min 1 pixels etc.; not sped up lines y
 	450 - test on image with werid prediciton for convpaint...
 	pred03 - predict again with fixed seed (= 123) --> similar weird predicitons
 	pred04 - predict again with same seed (= 123) and channel extraction and normalization
-	pred05 - test convpaint scalings an layers: predict every 10th image, but with 3 layer and 4 scaling combinations (= total 12x)
+	pred05 - test convpaint scalings and layers: predict every 10th image, but with 3 layer and 4 scaling combinations (= total 12x)
