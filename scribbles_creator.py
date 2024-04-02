@@ -47,8 +47,8 @@ def create_even_scribble(ground_truth, max_perc=0.2, sq_scaling=False, mode="all
             num_pix_in_scribble = np.sum(scribbles_class_mask)
             if num_pix_in_scribble > max_pix:
                 print(f"WARNING: The total number of pixels for class {class_val} ({num_pix_in_scribble}) exceeds the maximum ({max_pix:.2f}). Removing pixels...")
-                scribbles_class_coord = np.where(scribbles_class_mask)[0]
-                scribbles[scribbles_class_coord[max_pix:]] = 0
+                scribbles_class_coord = np.where(scribbles_class_mask)
+                scribbles[scribbles_class_coord[0][max_pix:], scribbles_class_coord[1][max_pix:]]
                 new_num_pix_in_scribble = np.sum(scribbles == class_val)
                 print(f"   New total number of pixels for the class: {new_num_pix_in_scribble} ({new_num_pix_in_scribble/tot_class_pix*100:.4f}%)")
 
