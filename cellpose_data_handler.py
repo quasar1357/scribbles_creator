@@ -113,13 +113,13 @@ def create_cellpose_gt(folder_path, img_num, save_res=True, show_res=False):
 
 
 
-def create_cellpose_scribble(folder_path, img_num, bin=0.1, sq_scaling=False, mode="all", save_res=False, suff=False, show_res=False, print_steps=False):
+def create_cellpose_scribble(folder_path, img_num, bin=0.1, sq_scaling=False, mode="all", save_res=False, suff=False, show_res=False, print_steps=False, scribble_width=1):
 
     # Load the ground truth and get the scribbles path for saving; note that if we want to show the results, we also load the image
     img_data = get_cellpose_img_data(folder_path, img_num, load_img=show_res, load_gt=True, mode=mode, bin=bin, suff=suff)
     ground_truth = img_data["gt"]
     # Create the scribbles
-    scribbles = create_even_scribble(ground_truth, max_perc=bin, sq_scaling=sq_scaling, mode=mode, print_steps=print_steps)
+    scribbles = create_even_scribble(ground_truth, max_perc=bin, sq_scaling=sq_scaling, mode=mode, print_steps=print_steps, scribble_width=scribble_width)
     perc_labelled = np.sum(scribbles>0) / (scribbles.shape[0] * scribbles.shape[1]) * 100
 
     if save_res:

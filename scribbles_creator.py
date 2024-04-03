@@ -4,7 +4,7 @@ from skimage.morphology import *
 from skimage.draw import line
 from scipy.spatial import distance
 
-def create_even_scribble(ground_truth, max_perc=0.2, sq_scaling=False, mode="all", print_steps=False):
+def create_even_scribble(ground_truth, max_perc=0.2, sq_scaling=False, mode="all", print_steps=False, scribble_width=1):
     '''Generate the scribble annotation for the ground truth using an even distribution of pixels among the chosen scribble types (all, both skeletons or individual skeletons and lines).
     This function uses a scribble_width of 1, a formula to determine the square size and a range for pixels inside a square or line of half to double one square side length.
     These parameters should be suited for max_perc values between approximately 0.05 and 1.
@@ -18,7 +18,6 @@ def create_even_scribble(ground_truth, max_perc=0.2, sq_scaling=False, mode="all
     # Calculate parameters for the scribble annotation
     num_annots = {"lines": 1, "prim_sk": 1, "sec_sk": 1, "both_sk" : 2, "all": 3}
     max_perc_per_type = max_perc / num_annots[mode]
-    scribble_width = 1
     if not sq_scaling: sq_scaling = 400/(max_perc**0.5)
     sq_size = (ground_truth.shape[0] * ground_truth.shape[1] // sq_scaling) ** 0.5
     sq_size = int(sq_size)
@@ -45,7 +44,8 @@ def create_even_scribble(ground_truth, max_perc=0.2, sq_scaling=False, mode="all
             # If too many pixels are present in this class in the scribble, raise a warning and pick the requested number of pixels
             scribbles_class_mask = scribbles == class_val
             num_pix_in_scribble = np.sum(scribbles_class_mask)
-            if num_pix_in_scribble > max_pix:
+            # Note that when inflating the scribble width, the number of pixels will increase, so the maximum percentage no longer has to be guaranteed
+            if num_pix_in_scribble > max_pix and scribble_width == 1:
                 print(f"WARNING: The total number of pixels for class {class_val} ({num_pix_in_scribble}) exceeds the maximum ({max_pix:.2f}). Removing pixels...")
                 scribbles_class_coord = np.where(scribbles_class_mask)
                 scribbles[scribbles_class_coord[0][max_pix:], scribbles_class_coord[1][max_pix:]]
