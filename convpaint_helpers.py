@@ -2,7 +2,7 @@ import numpy as np
 from napari_convpaint.conv_paint_utils import (Hookmodel, filter_image_multioutputs, get_features_current_layers, get_multiscale_features, train_classifier, predict_image, train_test_split)
 from sklearn.ensemble import RandomForestClassifier
 
-def selfpred_convpaint(image, labels, layer_list, scalings, model="vgg16", random_state=None):
+def selfpred_convpaint(image, labels, layer_list=[0], scalings=[1,2], model="vgg16", random_state=None):
     if image.ndim == 3 and image.shape[2] < 4:
         image = np.moveaxis(image, 2, 0) # Convpaint expects (C, H, W)
     # Define the model
