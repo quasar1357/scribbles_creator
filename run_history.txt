@@ -19,6 +19,7 @@ cluster_run02 - optimized for edge cases (min 1 pixels etc.; not sped up lines y
 		test: just to make sure the results can be reproduced with img 500, and testing different seeds... (x: seed=123, y: seed=5)
 		run03: same as run02 but with 1% scribbles
 cluster_run03 - create scribbles with approx. 10% using 1.25 bin and scribble_width=6 for images {0..539..10}
+	NOTE: scribbles with suffix _x_ were dilated (scribble_width=6)
 	pred06: prediction on ~10% scribbles using diff. Convpaint settings...
 
 
