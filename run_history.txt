@@ -23,5 +23,3 @@ cluster_run02 - optimized for edge cases (min 1 pixels etc.; not sped up lines y
 
 
 
-test convpaint params, 1% scribbles
-more complex image database
