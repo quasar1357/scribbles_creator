@@ -11,9 +11,12 @@ def create_even_scribble(ground_truth, max_perc=0.2, sq_scaling=False, mode="all
     Input:
         ground_truth (numpy array): the fully annotated image
         max_perc (float): the maximum percentage of pixels that should be picked (from skeletons and lines)
+        sq_scaling (int): the scaling factor for the square size (side length), i.e. the number of squares that would fit the image (default: 400/(max_perc**0.5))
         mode (str): the scribble types to use (lines, prim_sk, sec_sk, both_sk, all)
+        print_steps (bool): whether to print the steps of the scribble creation
+        scribble_width (int): the width of the scribble lines; IMPORTANT: the width is created through downstream dilation which alters the percentage...
     Output:
-        scribbles (numpy array): the scribble annotation
+        scribble (numpy array): the scribble annotation
     '''    
     # Calculate parameters for the scribble annotation
     num_annots = {"lines": 1, "prim_sk": 1, "sec_sk": 1, "both_sk" : 2, "all": 3}
@@ -23,7 +26,7 @@ def create_even_scribble(ground_truth, max_perc=0.2, sq_scaling=False, mode="all
     sq_size = int(sq_size)
 
     # Generate the scribble annotation for the ground truth
-    scribbles = create_scribble(ground_truth, scribble_width=scribble_width, sk_max_perc=max_perc_per_type, sq_size=sq_size, sq_pix_range=False, lines_max_perc=max_perc_per_type, line_pix_range=False, mode=mode, print_steps=print_steps)
+    scribble = create_scribble(ground_truth, scribble_width=scribble_width, sk_max_perc=max_perc_per_type, sq_size=sq_size, sq_pix_range=False, lines_max_perc=max_perc_per_type, line_pix_range=False, mode=mode, print_steps=print_steps)
 
     # Handle edge cases where too many pixels were picked
     # (Should only happen if the total maximum is <3 and the minimum of one pixel was picked per scribble type, even though this pushed the total percentage above the maximum)
@@ -42,32 +45,33 @@ def create_even_scribble(ground_truth, max_perc=0.2, sq_scaling=False, mode="all
                 print(f"WARNING: The theoretical maximum number of pixels for the entire class {class_val} ({max_pix:.2f}) is below 1. Instead, 1 pixel is picked.")
                 max_pix = 1
             # If too many pixels are present in this class in the scribble, raise a warning and pick the requested number of pixels
-            scribbles_class_mask = scribbles == class_val
-            num_pix_in_scribble = np.sum(scribbles_class_mask)
+            scribble_class_mask = scribble == class_val
+            num_pix_in_scribble = np.sum(scribble_class_mask)
             # Note that when inflating the scribble width, the number of pixels will increase, so the maximum percentage no longer has to be guaranteed
             if num_pix_in_scribble > max_pix and scribble_width == 1:
                 print(f"WARNING: The total number of pixels for class {class_val} ({num_pix_in_scribble}) exceeds the maximum ({max_pix:.2f}). Removing pixels...")
-                scribbles_class_coord = np.where(scribbles_class_mask)
-                scribbles[scribbles_class_coord[0][max_pix:], scribbles_class_coord[1][max_pix:]]
-                new_num_pix_in_scribble = np.sum(scribbles == class_val)
+                scribble_class_coord = np.where(scribble_class_mask)
+                scribble[scribble_class_coord[0][max_pix:], scribble_class_coord[1][max_pix:]]
+                new_num_pix_in_scribble = np.sum(scribble == class_val)
                 print(f"   New total number of pixels for the class: {new_num_pix_in_scribble} ({new_num_pix_in_scribble/tot_class_pix*100:.4f}%)")
 
-    return scribbles
+    return scribble
 
 def create_scribble(ground_truth, scribble_width=1, sk_max_perc=0.05, sq_size=20, sq_pix_range=False, lines_max_perc=0.05, line_pix_range=False, mode="all", print_steps=False):
     '''
     Generate the scribble annotation for the ground truth.
     Input:
         ground_truth (numpy array): the fully annotated image
-        scribble_width (int): the width of the scribble lines (NOTE: the width is created through dilation which alters the percentage...)
+        scribble_width (int): the width of the scribble lines; IMPORTANT: the width is created through dilation which alters the percentage...
         sk_max_perc (float): the maximum percentage of pixels of the ground truth that should be picked (from each of the skeletons)
         sq_size (int): the size of the squares (side length)
         sq_pix_range (int): the range that the number of pixels in a square shall be in
         lines_max_perc (float): the maximum percentage of pixels of the ground truth that should be created by drawing lines
         line_pix_range (int): the range that the number of pixels for a line shall be in
         mode (str): the scribble types to use (lines, prim_sk, sec_sk, both_sk, all)
+        print_steps (bool): whether to print the steps of the scribble creation
     Output:
-        output (numpy array): the scribble annotation        
+        output (numpy array): the scribble annotation
     '''
     scribble = np.zeros_like(ground_truth, dtype=np.uint8)
     # For each class (= value) in the ground truth, generate the scribble annotation
@@ -96,6 +100,7 @@ def scribble_class(gt, class_val, scribble_width=1, sk_max_perc=0.05, sq_size=20
         lines_max_perc (float): the maximum percentage of pixels of the ground truth that should be created by drawing lines
         line_pix_range (int): the range that the number of pixels for a line shall be in
         mode (str): the scribble types to use (lines, prim_sk, sec_sk, both_sk, all)
+        print_steps (bool): whether to print the steps of the scribble creation
     Output:
         class_scribble (numpy array): the scribble annotation for the class
     '''
@@ -125,7 +130,7 @@ def scribble_class(gt, class_val, scribble_width=1, sk_max_perc=0.05, sq_size=20
         # Ensure that each square is allowed to contain as little pixels as the maximum total pixels in all squares
         sq_pix_range = (min(sq_size//2, int(sk_max_pix)), sq_size*2) if not sq_pix_range else sq_pix_range
         if print_steps:
-            print(f"sk_max_pix: {sk_max_pix:.4f}, sq_size: {sq_size}, sk_pix_range: {sq_pix_range}")
+            print(f"sk_max_pix: {sk_max_pix:.2f}, sq_size: {sq_size}, sk_pix_range: {sq_pix_range}")
         # If the primary skeleton is needed, pick squares of it
         if mode in ("prim_sk", "both_sk", "all"):
             prim_sk_squares = pick_sk_squares(prim_sk, sk_max_pix=sk_max_pix, sq_size=sq_size, sq_pix_range=sq_pix_range)
@@ -152,7 +157,7 @@ def scribble_class(gt, class_val, scribble_width=1, sk_max_perc=0.05, sq_size=20
         # Ensure that the line is allowed to be as short as the maximum total pixels in all lines
         line_pix_range = (min(sq_size//2, int(lines_max_pix)), sq_size*2) if not line_pix_range else line_pix_range
         if print_steps:
-            print(f"lines_max_pix: {lines_max_pix:.4f}, line_pix_range: {line_pix_range}")
+            print(f"lines_max_pix: {lines_max_pix:.2f}, line_pix_range: {line_pix_range}")
         lines = create_lines(prim_sk, gt_class_mask, lines_max_pix, line_pix_range)
         if print_steps:
             print(f"   lines pix: {np.sum(lines)} = {np.sum(lines)/np.sum(gt_class_mask)*100:.2f}%")
@@ -328,8 +333,9 @@ def create_lines(sk, gt_mask, lines_max_pix=20, line_pix_range=(10, 40), dist_to
             all_lines = create_lines(sk, gt_mask, lines_max_pix, line_pix_range)
         # If this did not work (i.e. the lines are longer than the lines_max), shorten the lines by increasing the distance to the edge
         elif dist_to_edge < max(gt_mask.shape) // 2:
-            print("Adjusting distance to edge to", dist_to_edge + 1)
-            all_lines = create_lines(sk, gt_mask, lines_max_pix, line_pix_range, dist_to_edge + 1)
+            new_dist_to_edge = int(dist_to_edge * 1.5)
+            print("Adjusting distance to edge to", new_dist_to_edge)
+            all_lines = create_lines(sk, gt_mask, lines_max_pix, line_pix_range, new_dist_to_edge)
         else:
             print("ERROR: No lines were added!")
     return all_lines
