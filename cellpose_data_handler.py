@@ -180,7 +180,7 @@ def pred_cellpose_ilastik(folder_path, img_num, mode="NA", bin="NA", suff=False,
     ground_truth = img_data["gt"]
     
     # Predict the image
-    if image.ndim > 1:
+    if image.ndim > 2:
         prediction = pixel_classification_ilastik_multichannel(image, labels)
     else:
         prediction = pixel_classification_ilastik(image, labels)
