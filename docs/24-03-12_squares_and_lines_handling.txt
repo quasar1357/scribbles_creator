@@ -1,0 +1,50 @@
+
+CASES
+===
+line/square < min <= max < max_tot --> decrease min --> ok
+line/square < min < max_tot < max -->  decrease min --> ok
+
+min < line/square < max < max_tot --> ok
+min < line/square < max_tot < max --> ok
+min < max < line/square < max_tot --> increase max / decrease square --> ok
+min < max < max_tot < line/square --> overshoot! --> decrease line/square
+min <= max_tot < max < line/square --> overshoot! --> decrease line/square
+min <= max_tot < line/square < max --> overshoot! --> decrease line/square
+
+max < min --> makes no sense
+max_tot < min --> min will be set to max_tot
+
+
+
+
+ToDo
+===
+- bei squares: round statt //2 (und schauen dass innerhalb)
+- logik bei squares wie bei lines durchspielen
+ 	(unterschied: square size kann angepasst werden; effekt ähnlich zu distance_to_edge? aber eben doch anders...)
+- lines: was tun, wenn keine gepickt werden kann (random point on sk?)
+- Was, wenn alle Lines zu lange? --> increase (double?) distance to edge?
+- Was, wenn max_pix für squares/lines < 1 und/oder
+- Was wenn am Schluss picked > max_picked? (notably cases wo max_pix < 3 --> sq/lines max auf 1 erhöht --> too many)
+--> done
+
+
+
+
+IDEA
+===
+Increase efficiency for line creation:
+Lucien: ja du chasch
+- distance transform mache vom single pixel vom punkt A
+- die falschi maske inverte und mit der distance map multipliziere, das alli falsche pixel d value vor distance zum punkt A hei
+- ner chasch np.min() bruche zum di chlisnti distance ds fine
+- ner np.where == min zum luege wo überall das es pixel isch mit der min dist
+- ner chasch eich random eis pixel vo dere liste neh (wenns mehreri pünkt mit der gliche distanz git) oder ds erste element
+--> tested, not better than cdist
+
+
+
+
+
+
+

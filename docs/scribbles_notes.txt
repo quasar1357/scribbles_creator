@@ -1,0 +1,59 @@
+
+
+Observations:
+V4 does not perform as well on certain images, e.g. 500 and 400
+V4 does not work with later layers --> would need bigger boxes
+
+
+
+
+
+
+
+
+
+
+scales
+1
+1, 2
+1, 2, 4
+1, 2, 4, 8
+
+layers
+0
+0, 2
+(0, 2, 5)
+
+bin: 0.1% --> then also 1%
+--> grid (4x3=12 --> no, but 4x2=8)
+--> welche Bilder? --> jedes 10.
+
+
+min_kernel_size = [1,1,1,1,3,3,3,3,3,7,7,7,7,7,7,7,15,15,15,15,15,15,15,31,31,31,31,31,31,31,31]
+deepest_layer = np.max(layers)
+min_kernel_size[deepest_layer]
+
+
+
+
+
+
+
+
+
+model_name --> nope...
+ x single_layer_vgg16
+use_min_features = True --> nope
+ x nur oben
+ x oben und unten
+
+x random_state
+
+
+
+! channels...
+
+! normlization
+
+--> umgesetzt!
+// Was wenn 2 channels "active"?

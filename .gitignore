@@ -1,5 +1,6 @@
 __pycache__
 archive
 cellpose_train_imgs
-imgs_other
 results/data
+others
+trash
