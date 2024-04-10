@@ -1,6 +1,7 @@
 __pycache__
 archive
 cellpose_train_imgs
-results/data
+cellpose_results/data
+FoodSeg103_results/data
 others
 trash
