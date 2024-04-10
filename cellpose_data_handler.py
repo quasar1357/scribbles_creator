@@ -113,10 +113,11 @@ def create_cellpose_gt(folder_path, img_num, save_res=True, show_res=False):
 
 
 
-def create_cellpose_scribble(folder_path, img_num, bin=0.1, sq_scaling=False, mode="all", save_res=False, suff=False, show_res=False, print_steps=False, scribble_width=1):
-
+def create_cellpose_scribble(folder_path, img_num, bin=0.1, sq_scaling=False, mode="all", save_res=False, suff=False, show_res=False, show_img=True, print_steps=False, scribble_width=1):
+    # We only need to load the image if we want to show the results and it is specified that the image should be shown
+    if not show_res: show_img = False
     # Load the ground truth and get the scribbles path for saving; note that if we want to show the results, we also load the image
-    img_data = get_cellpose_img_data(folder_path, img_num, load_img=show_res, load_gt=True, mode=mode, bin=bin, suff=suff)
+    img_data = get_cellpose_img_data(folder_path, img_num, load_img=show_img, load_gt=True, mode=mode, bin=bin, suff=suff)
     ground_truth = img_data["gt"]
     # Create the scribbles
     scribbles = create_even_scribble(ground_truth, max_perc=bin, sq_scaling=sq_scaling, mode=mode, print_steps=print_steps, scribble_width=scribble_width)
@@ -129,10 +130,11 @@ def create_cellpose_scribble(folder_path, img_num, bin=0.1, sq_scaling=False, mo
         scribble_img.save(scribbles_path)
 
     if show_res:
-        # Show the image, ground truth and the scribbles
-        image = img_data["img"]
+        # Show the image (if intended), ground truth and the scribbles
         v = napari.Viewer()
-        v.add_image(image)
+        if show_img:
+            image = img_data["img"]
+            v.add_image(image)
         v.add_labels(ground_truth)
         v.add_labels(scribbles)
 
@@ -140,16 +142,18 @@ def create_cellpose_scribble(folder_path, img_num, bin=0.1, sq_scaling=False, mo
 
 
 
-def pred_cellpose_convpaint(folder_path, img_num, mode="NA", bin="NA", suff=False, layer_list=[0], scalings=[1,2], model="vgg16", random_state=None, save_res=False, show_res=False):
-    # Load the image, labels and the ground truth
+def pred_cellpose_convpaint(folder_path, img_num, mode="NA", bin="NA", suff=False, layer_list=[0], scalings=[1,2], model="vgg16", random_state=None, save_res=False, show_res=False, show_gt=True):
+    # Generate the model prefix given the model, the layer list and the scalings
     model_pref = f'_{model}' if model != 'vgg16' else ''
     layer_pref = f'_l-{str(layer_list)[1:-1].replace(", ", "-")}'# if layer_list != [0] else ''
     scalings_pref = f'_s-{str(scalings)[1:-1].replace(", ", "-")}'# if scalings != [1,2] else ''
     pred_tag = f"convpaint{model_pref}{layer_pref}{scalings_pref}"
-    img_data = get_cellpose_img_data(folder_path, img_num, load_img=True, load_gt=True, load_scribbles=True, mode=mode, bin=bin, suff=suff, load_pred=False, pred_tag=pred_tag)
+    # Load the image and labels
+    # We only need to load the image if we want to show the results and it is specified that the image should be shown
+    if not show_res: show_gt = False    
+    img_data = get_cellpose_img_data(folder_path, img_num, load_img=True, load_gt=show_gt, load_scribbles=True, mode=mode, bin=bin, suff=suff, load_pred=False, pred_tag=pred_tag)
     image = img_data["img"]
     labels = img_data["scribbles"]
-    ground_truth = img_data["gt"]
 
     # Predict the image
     prediction = selfpred_convpaint(image, labels, layer_list, scalings, model, random_state)
@@ -161,10 +165,12 @@ def pred_cellpose_convpaint(folder_path, img_num, mode="NA", bin="NA", suff=Fals
         pred_image.save(pred_path)
 
     if show_res:
-        # Show the ground truth and the scribble annotation
+        # Show the results
         v = napari.Viewer()
         v.add_image(image)
-        v.add_labels(ground_truth)
+        if show_gt:
+            ground_truth = img_data["gt"]
+            v.add_labels(ground_truth)
         v.add_labels(prediction, name="convpaint")
         v.add_labels(labels)
 
@@ -172,12 +178,13 @@ def pred_cellpose_convpaint(folder_path, img_num, mode="NA", bin="NA", suff=Fals
 
 
 
-def pred_cellpose_ilastik(folder_path, img_num, mode="NA", bin="NA", suff=False, save_res=False, show_res=False):
+def pred_cellpose_ilastik(folder_path, img_num, mode="NA", bin="NA", suff=False, save_res=False, show_res=False, show_gt=True):
+    # We only need to load the image if we want to show the results and it is specified that the image should be shown
+    if not show_res: show_gt = False        
     # Load the image, labels and the ground truth
-    img_data = get_cellpose_img_data(folder_path, img_num, load_img=True, load_gt=True, load_scribbles=True, mode=mode, bin=bin, suff=suff, load_pred=False, pred_tag="ilastik")
+    img_data = get_cellpose_img_data(folder_path, img_num, load_img=True, load_gt=show_gt, load_scribbles=True, mode=mode, bin=bin, suff=suff, load_pred=False, pred_tag="ilastik")
     image = img_data["img"]
     labels = img_data["scribbles"]
-    ground_truth = img_data["gt"]
     
     # Predict the image
     if image.ndim > 2:
@@ -192,10 +199,12 @@ def pred_cellpose_ilastik(folder_path, img_num, mode="NA", bin="NA", suff=False,
         pred_image.save(pred_path)
 
     if show_res:
-        # Show the ground truth and the scribble annotation
+        # Show the results
         v = napari.Viewer()
         v.add_image(image)
-        v.add_labels(ground_truth)
+        if show_gt:
+            ground_truth = img_data["gt"]
+            v.add_labels(ground_truth)
         v.add_labels(prediction, name="ilastik")
         v.add_labels(labels)
 
