@@ -3,7 +3,8 @@ import numpy as np
 import pandas as pd
 from scribbles_creator import create_even_scribbles
 from convpaint_helpers import selfpred_convpaint
-from ilastik_helpers import pixel_classification_ilastik, pixel_classification_ilastik_multichannel
+from ilastik_helpers import selfpred_ilastik
+from dino_helpers import selfpred_dino
 from PIL import Image
 import napari
 
@@ -90,11 +91,7 @@ def create_food_scribble(ground_truth, folder_path, img_num, bin=0.1, sq_scaling
 
 
 def pred_food_convpaint(image, folder_path, img_num, mode="all", bin="NA", suff=False, layer_list=[0], scalings=[1,2], model="vgg16", random_state=None, save_res=False, show_res=False, ground_truth=None):
-    # Generate the model prefix given the model, the layer list and the scalings
-    model_pref = f'_{model}' if model != 'vgg16' else ''
-    layer_pref = f'_l-{str(layer_list)[1:-1].replace(", ", "-")}'# if layer_list != [0] else ''
-    scalings_pref = f'_s-{str(scalings)[1:-1].replace(", ", "-")}'# if scalings != [1,2] else ''
-    pred_tag = f"convpaint{model_pref}{layer_pref}{scalings_pref}"
+    pred_tag = generate_convpaint_tag(layer_list, scalings, model)
     # Load the image and labels
     img_data = get_food_img_data(folder_path, img_num, load_scribbles=True, mode=mode, bin=bin, suff=suff, load_pred=False, pred_tag=pred_tag)
     labels = img_data["scribbles"]
@@ -119,19 +116,23 @@ def pred_food_convpaint(image, folder_path, img_num, mode="all", bin="NA", suff=
 
     return prediction
 
+def generate_convpaint_tag(layer_list, scalings, model="vgg16"):
+    # Generate the model prefix given the model, the layer list and the scalings
+    model_pref = f'_{model}' if model != 'vgg16' else ''
+    layer_pref = f'_l-{str(layer_list)[1:-1].replace(", ", "-")}'# if layer_list != [0] else ''
+    scalings_pref = f'_s-{str(scalings)[1:-1].replace(", ", "-")}'# if scalings != [1,2] else ''
+    pred_tag = f"convpaint{model_pref}{layer_pref}{scalings_pref}"
+    return pred_tag
 
 
-def pred_food_ilastik(image, folder_path, img_num, mode="all", bin="NA", suff=False, save_res=False, show_res=False, ground_truth=None):
+
+def pred_food_ilastik(image, folder_path, img_num, mode="all", bin="NA", suff=False, random_state=None, save_res=False, show_res=False, ground_truth=None):
     # Load the image, labels and the ground truth
     img_data = get_food_img_data(folder_path, img_num, load_scribbles=True, mode=mode, bin=bin, suff=suff, load_pred=False, pred_tag="ilastik")
     labels = img_data["scribbles"]
     
     # Predict the image
-    if image.ndim > 2:
-        prediction = pixel_classification_ilastik_multichannel(image, labels)
-    else:
-        prediction = pixel_classification_ilastik(image, labels)
-
+    prediction = selfpred_ilastik(image, labels, random_state)
     pred = post_proc_ila_pred(prediction, labels)
 
     if save_res:
@@ -157,7 +158,35 @@ def post_proc_ila_pred(prediction, labels):
     labels = np.unique(labels[labels!=0])
     for i, l in enumerate(labels):
         pred_new[prediction == i+1] = l
-    return pred_new   
+    return pred_new
+
+
+
+def pred_food_dino(image, folder_path, img_num, mode="all", bin="NA", suff=False, dinov2_model='s', dinov2_layers=(), dinov2_scales=(), upscale_order=1, random_state=None, save_res=False, show_res=False, ground_truth=None):
+    # Load the image, labels and the ground truth
+    img_data = get_food_img_data(folder_path, img_num, load_scribbles=True, mode=mode, bin=bin, suff=suff, load_pred=False, pred_tag="dino")
+    labels = img_data["scribbles"]
+    
+    # Predict the image
+    prediction = selfpred_dino(image, labels, dinov2_model=dinov2_model, dinov2_layers=dinov2_layers, dinov2_scales=dinov2_scales, upscale_order=upscale_order, random_state = random_state)
+
+    if save_res:
+        # Save the scribble annotation as an image
+        pred_path = img_data["pred_path"]
+        pred_image = Image.fromarray(prediction)
+        pred_image.save(pred_path)
+
+    if show_res:
+        # Show the results
+        v = napari.Viewer()
+        v.add_image(image)
+        if ground_truth is not None:
+            v.add_labels(ground_truth)
+        v.add_labels(prediction, name="dino")
+        v.add_labels(labels)
+
+    return prediction
+
 
 
 

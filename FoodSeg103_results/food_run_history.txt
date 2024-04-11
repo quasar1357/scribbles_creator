@@ -1,1 +1,2 @@
-run01	just testing the pipeline on some images... (locally)
+run01   just testing the pipeline on some images... (locally)
+run02   create scribbles and run predictions on 23 images (locally) to get a good idea of the models' performances
