@@ -1,7 +1,7 @@
 from datasets import load_dataset
 import numpy as np
 import pandas as pd
-from scribbles_creator import create_even_scribble
+from scribbles_creator import create_even_scribbles
 from convpaint_helpers import selfpred_convpaint
 from ilastik_helpers import pixel_classification_ilastik, pixel_classification_ilastik_multichannel
 from PIL import Image
@@ -17,23 +17,25 @@ def load_food_data(img_num: int):
     ground_truth = ground_truth + 1
     return img, ground_truth
 
-def load_food_batch(img_num_list: list):
+def load_food_batch(img_num_list: list, load_images=True, load_gts=True):
     dataset = load_dataset("EduardoPacheco/FoodSeg103")
     img_dict = {}
     ground_truth_dict = {}
     for img_num in img_num_list:
-        img = dataset['train'][img_num]['image']
-        img = np.array(img)
-        ground_truth = dataset['train'][img_num]['label']
-        ground_truth = np.array(ground_truth)
-        ground_truth = ground_truth + 1
-        img_dict[img_num] = img
-        ground_truth_dict[img_num] = ground_truth
+        if load_images:
+            img = dataset['train'][img_num]['image']
+            img = np.array(img)
+            img_dict[img_num] = img
+        if load_gts:
+            ground_truth = dataset['train'][img_num]['label']
+            ground_truth = np.array(ground_truth)
+            ground_truth = ground_truth + 1
+            ground_truth_dict[img_num] = ground_truth
     return img_dict, ground_truth_dict
 
 
 
-def get_food_img_data(folder_path, img_num, load_scribbles=False, mode="NA", bin="NA", suff=False, load_pred=False, pred_tag="convpaint"):
+def get_food_img_data(folder_path, img_num, load_scribbles=False, mode="all", bin="NA", suff=False, load_pred=False, pred_tag="convpaint"):
     
     folder_path = folder_path if folder_path[-1] == "/" else folder_path + "/"
     img_base = str(img_num).zfill(4)
@@ -65,7 +67,7 @@ def bin_for_file(bin):
 def create_food_scribble(ground_truth, folder_path, img_num, bin=0.1, sq_scaling=False, mode="all", save_res=False, suff=False, show_res=False, image=None, print_steps=False, scribble_width=1):
 
     # Create the scribbles
-    scribbles = create_even_scribble(ground_truth, max_perc=bin, sq_scaling=sq_scaling, mode=mode, print_steps=print_steps, scribble_width=scribble_width)
+    scribbles = create_even_scribbles(ground_truth, max_perc=bin, sq_scaling=sq_scaling, mode=mode, print_steps=print_steps, scribble_width=scribble_width)
     perc_labelled = np.sum(scribbles>0) / (scribbles.shape[0] * scribbles.shape[1]) * 100
 
     if save_res:
@@ -87,7 +89,7 @@ def create_food_scribble(ground_truth, folder_path, img_num, bin=0.1, sq_scaling
     return scribbles, perc_labelled
 
 
-def pred_food_convpaint(image, folder_path, img_num, mode="NA", bin="NA", suff=False, layer_list=[0], scalings=[1,2], model="vgg16", random_state=None, save_res=False, show_res=False, ground_truth=None):
+def pred_food_convpaint(image, folder_path, img_num, mode="all", bin="NA", suff=False, layer_list=[0], scalings=[1,2], model="vgg16", random_state=None, save_res=False, show_res=False, ground_truth=None):
     # Generate the model prefix given the model, the layer list and the scalings
     model_pref = f'_{model}' if model != 'vgg16' else ''
     layer_pref = f'_l-{str(layer_list)[1:-1].replace(", ", "-")}'# if layer_list != [0] else ''
@@ -119,12 +121,9 @@ def pred_food_convpaint(image, folder_path, img_num, mode="NA", bin="NA", suff=F
 
 
 
-def pred_food_ilastik(image, folder_path, img_num, mode="NA", bin="NA", suff=False, save_res=False, show_res=False, ground_truth=None):
-    # We only need to load the image if we want to show the results and it is specified that the image should be shown
-    if not show_res: show_gt = False
+def pred_food_ilastik(image, folder_path, img_num, mode="all", bin="NA", suff=False, save_res=False, show_res=False, ground_truth=None):
     # Load the image, labels and the ground truth
-    img_data = get_food_img_data(folder_path, img_num, load_img=True, load_gt=show_gt, load_scribbles=True, mode=mode, bin=bin, suff=suff, load_pred=False, pred_tag="ilastik")
-    image = img_data["img"]
+    img_data = get_food_img_data(folder_path, img_num, load_scribbles=True, mode=mode, bin=bin, suff=suff, load_pred=False, pred_tag="ilastik")
     labels = img_data["scribbles"]
     
     # Predict the image
@@ -133,10 +132,12 @@ def pred_food_ilastik(image, folder_path, img_num, mode="NA", bin="NA", suff=Fal
     else:
         prediction = pixel_classification_ilastik(image, labels)
 
+    pred = post_proc_ila_pred(prediction, labels)
+
     if save_res:
         # Save the scribble annotation as an image
         pred_path = img_data["pred_path"]
-        pred_image = Image.fromarray(prediction)
+        pred_image = Image.fromarray(pred)
         pred_image.save(pred_path)
 
     if show_res:
@@ -145,29 +146,24 @@ def pred_food_ilastik(image, folder_path, img_num, mode="NA", bin="NA", suff=Fal
         v.add_image(image)
         if ground_truth is not None:
             v.add_labels(ground_truth)
-        v.add_labels(prediction, name="ilastik")
+        v.add_labels(pred, name="ilastik")
         v.add_labels(labels)
 
-    return prediction
+    return pred
 
-
-def pred_food_ilastik_simple(image, labels):
-    # Predict the image
-    if image.ndim > 2:
-        prediction = pixel_classification_ilastik_multichannel(image, labels)
-    else:
-        prediction = pixel_classification_ilastik(image, labels)
+def post_proc_ila_pred(prediction, labels):
     # Sort the labels and use them to assign the correct labels to the Ilastik prediction
     pred_new = prediction.copy()
     labels = np.unique(labels[labels!=0])
     for i, l in enumerate(labels):
         pred_new[prediction == i+1] = l
-    return pred_new
+    return pred_new   
+
 
 
 def analyse_food_single_file(ground_truth, folder_path, img_num, mode="all", bin=0.1, suff=False, pred_tag="convpaint", show_res=False, image=None):
 
-    img_data = get_food_img_data(folder_path, img_num, load_img=show_res, load_gt=True, load_scribbles=True, mode=mode, bin=bin, suff=suff, load_pred=True, pred_tag=pred_tag)
+    img_data = get_food_img_data(folder_path, img_num, load_scribbles=True, mode=mode, bin=bin, suff=suff, load_pred=True, pred_tag=pred_tag)
     scribbles_path = img_data["scribbles_path"]
     pred_path = img_data["pred_path"]
     # Read the images

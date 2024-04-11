@@ -4,13 +4,13 @@ from PIL import Image
 import os
 import napari
 
-from scribbles_creator import create_even_scribble
+from scribbles_creator import create_even_scribbles
 from convpaint_helpers import *
 from ilastik_helpers import pixel_classification_ilastik, pixel_classification_ilastik_multichannel
 from napari_convpaint.conv_paint_utils import compute_image_stats, normalize_image
 
 
-def get_cellpose_img_data(folder_path, img_num, load_img=False, load_gt=False, load_scribbles=False, mode="NA", bin="NA", suff=False, load_pred=False, pred_tag="convpaint"):
+def get_cellpose_img_data(folder_path, img_num, load_img=False, load_gt=False, load_scribbles=False, mode="all", bin="NA", suff=False, load_pred=False, pred_tag="convpaint"):
     
     folder_path = folder_path if folder_path[-1] == "/" else folder_path + "/"
     img_base = str(img_num).zfill(3)
@@ -120,7 +120,7 @@ def create_cellpose_scribble(folder_path, img_num, bin=0.1, sq_scaling=False, mo
     img_data = get_cellpose_img_data(folder_path, img_num, load_img=show_img, load_gt=True, mode=mode, bin=bin, suff=suff)
     ground_truth = img_data["gt"]
     # Create the scribbles
-    scribbles = create_even_scribble(ground_truth, max_perc=bin, sq_scaling=sq_scaling, mode=mode, print_steps=print_steps, scribble_width=scribble_width)
+    scribbles = create_even_scribbles(ground_truth, max_perc=bin, sq_scaling=sq_scaling, mode=mode, print_steps=print_steps, scribble_width=scribble_width)
     perc_labelled = np.sum(scribbles>0) / (scribbles.shape[0] * scribbles.shape[1]) * 100
 
     if save_res:
@@ -142,7 +142,7 @@ def create_cellpose_scribble(folder_path, img_num, bin=0.1, sq_scaling=False, mo
 
 
 
-def pred_cellpose_convpaint(folder_path, img_num, mode="NA", bin="NA", suff=False, layer_list=[0], scalings=[1,2], model="vgg16", random_state=None, save_res=False, show_res=False, show_gt=True):
+def pred_cellpose_convpaint(folder_path, img_num, mode="all", bin="NA", suff=False, layer_list=[0], scalings=[1,2], model="vgg16", random_state=None, save_res=False, show_res=False, show_gt=True):
     # Generate the model prefix given the model, the layer list and the scalings
     model_pref = f'_{model}' if model != 'vgg16' else ''
     layer_pref = f'_l-{str(layer_list)[1:-1].replace(", ", "-")}'# if layer_list != [0] else ''
@@ -178,7 +178,7 @@ def pred_cellpose_convpaint(folder_path, img_num, mode="NA", bin="NA", suff=Fals
 
 
 
-def pred_cellpose_ilastik(folder_path, img_num, mode="NA", bin="NA", suff=False, save_res=False, show_res=False, show_gt=True):
+def pred_cellpose_ilastik(folder_path, img_num, mode="all", bin="NA", suff=False, save_res=False, show_res=False, show_gt=True):
     # We only need to load the image if we want to show the results and it is specified that the image should be shown
     if not show_res: show_gt = False        
     # Load the image, labels and the ground truth
