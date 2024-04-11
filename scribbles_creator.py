@@ -4,7 +4,7 @@ from skimage.morphology import *
 from skimage.draw import line
 from scipy.spatial import distance
 
-def create_even_scribble(ground_truth, max_perc=0.2, sq_scaling=False, mode="all", print_steps=False, scribble_width=1):
+def create_even_scribbles(ground_truth, max_perc=0.2, sq_scaling=False, mode="all", print_steps=False, scribble_width=1):
     '''Generate the scribble annotation for the ground truth using an even distribution of pixels among the chosen scribble types (all, both skeletons or individual skeletons and lines).
     This function uses a scribble_width of 1, a formula to determine the square size and a range for pixels inside a square or line of half to double one square side length.
     These parameters should be suited for max_perc values between approximately 0.05 and 1.
@@ -333,7 +333,8 @@ def create_lines(sk, gt_mask, lines_max_pix=20, line_pix_range=(10, 40), dist_to
             all_lines = create_lines(sk, gt_mask, lines_max_pix, line_pix_range)
         # If this did not work (i.e. the lines are longer than the lines_max), shorten the lines by increasing the distance to the edge
         elif dist_to_edge < max(gt_mask.shape) // 2:
-            new_dist_to_edge = int(dist_to_edge * 1.5)
+            # Take a minimum distance of 2 pixels to the edge, to not get stuck at 1 pixel...
+            new_dist_to_edge = max(2, int(dist_to_edge * 1.5))
             print("Adjusting distance to edge to", new_dist_to_edge)
             all_lines = create_lines(sk, gt_mask, lines_max_pix, line_pix_range, new_dist_to_edge)
         else:
