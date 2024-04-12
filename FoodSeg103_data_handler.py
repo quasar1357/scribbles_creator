@@ -1,21 +1,29 @@
 from datasets import load_dataset
 import numpy as np
 import pandas as pd
-from scribbles_creator import create_even_scribbles
-from convpaint_helpers import selfpred_convpaint
-from ilastik_helpers import selfpred_ilastik
-from dino_helpers import selfpred_dino
 from PIL import Image
 import napari
 
+from scribbles_creator import create_even_scribbles
+from convpaint_helpers import selfpred_convpaint, generate_convpaint_tag
+from ilastik_helpers import selfpred_ilastik
+from dino_helpers import selfpred_dino
 
-def load_food_data(img_num: int):
+
+
+def load_food_data(img_num: int, load_image=True, load_gt=True):
     dataset = load_dataset("EduardoPacheco/FoodSeg103")
-    img = dataset['train'][img_num]['image']
-    img = np.array(img)
-    ground_truth = dataset['train'][img_num]['label']
-    ground_truth = np.array(ground_truth)
-    ground_truth = ground_truth + 1
+    if load_image:
+        img = dataset['train'][img_num]['image']
+        img = np.array(img)
+    else:
+        img = None
+    if load_gt:
+        ground_truth = dataset['train'][img_num]['label']
+        ground_truth = np.array(ground_truth)
+        ground_truth = ground_truth + 1
+    else:
+        ground_truth = None
     return img, ground_truth
 
 def load_food_batch(img_num_list: list, load_images=True, load_gts=True):
@@ -90,6 +98,7 @@ def create_food_scribble(ground_truth, folder_path, img_num, bin=0.1, sq_scaling
     return scribbles, perc_labelled
 
 
+
 def pred_food_convpaint(image, folder_path, img_num, mode="all", bin="NA", suff=False, layer_list=[0], scalings=[1,2], model="vgg16", random_state=None, save_res=False, show_res=False, ground_truth=None):
     pred_tag = generate_convpaint_tag(layer_list, scalings, model)
     # Load the image and labels
@@ -115,14 +124,6 @@ def pred_food_convpaint(image, folder_path, img_num, mode="all", bin="NA", suff=
         v.add_labels(labels)
 
     return prediction
-
-def generate_convpaint_tag(layer_list, scalings, model="vgg16"):
-    # Generate the model prefix given the model, the layer list and the scalings
-    model_pref = f'_{model}' if model != 'vgg16' else ''
-    layer_pref = f'_l-{str(layer_list)[1:-1].replace(", ", "-")}'# if layer_list != [0] else ''
-    scalings_pref = f'_s-{str(scalings)[1:-1].replace(", ", "-")}'# if scalings != [1,2] else ''
-    pred_tag = f"convpaint{model_pref}{layer_pref}{scalings_pref}"
-    return pred_tag
 
 
 
@@ -186,7 +187,6 @@ def pred_food_dino(image, folder_path, img_num, mode="all", bin="NA", suff=False
         v.add_labels(labels)
 
     return prediction
-
 
 
 

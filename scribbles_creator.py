@@ -1,5 +1,4 @@
 import numpy as np
-import napari
 from skimage.morphology import *
 from skimage.draw import line
 from scipy.spatial import distance
@@ -112,9 +111,7 @@ def scribble_class(gt, class_val, scribble_width=1, sk_max_perc=0.05, sq_size=20
 
     # Generate the primary and secondary skeleton for the class in this slice
     prim_sk, sec_sk = double_sk_class(gt_class_mask)
-    # v = napari.Viewer()
-    # v.add_image(prim_sk)
-    # v.add_image(sec_sk)
+
     # Check if a skeleton was created, raise an error if not
     if np.sum(prim_sk) == 0:
         raise ValueError(f"No skeleton was created for class {class_val}.")

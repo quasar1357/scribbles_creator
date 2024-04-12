@@ -36,3 +36,12 @@ def selfpred_convpaint(image, labels, layer_list=[0], scalings=[1,2], model="vgg
         image, model, random_forest, scalings=scalings,
         order=1, use_min_features=False, image_downsample=1)
     return predicted
+
+
+def generate_convpaint_tag(layer_list, scalings, model="vgg16"):
+    # Generate the model prefix given the model, the layer list and the scalings
+    model_pref = f'_{model}' if model != 'vgg16' else ''
+    layer_pref = f'_l-{str(layer_list)[1:-1].replace(", ", "-")}'# if layer_list != [0] else ''
+    scalings_pref = f'_s-{str(scalings)[1:-1].replace(", ", "-")}'# if scalings != [1,2] else ''
+    pred_tag = f"convpaint{model_pref}{layer_pref}{scalings_pref}"
+    return pred_tag

@@ -1,12 +1,13 @@
+import os
 import numpy as np
 import pandas as pd
 from PIL import Image
-import os
 import napari
 
 from scribbles_creator import create_even_scribbles
-from convpaint_helpers import *
-from ilastik_helpers import pixel_classification_ilastik, pixel_classification_ilastik_multichannel
+from convpaint_helpers import selfpred_convpaint, generate_convpaint_tag
+from ilastik_helpers import selfpred_ilastik
+from dino_helpers import selfpred_dino
 from napari_convpaint.conv_paint_utils import compute_image_stats, normalize_image
 
 
@@ -144,13 +145,11 @@ def create_cellpose_scribble(folder_path, img_num, bin=0.1, sq_scaling=False, mo
 
 def pred_cellpose_convpaint(folder_path, img_num, mode="all", bin="NA", suff=False, layer_list=[0], scalings=[1,2], model="vgg16", random_state=None, save_res=False, show_res=False, show_gt=True):
     # Generate the model prefix given the model, the layer list and the scalings
-    model_pref = f'_{model}' if model != 'vgg16' else ''
-    layer_pref = f'_l-{str(layer_list)[1:-1].replace(", ", "-")}'# if layer_list != [0] else ''
-    scalings_pref = f'_s-{str(scalings)[1:-1].replace(", ", "-")}'# if scalings != [1,2] else ''
-    pred_tag = f"convpaint{model_pref}{layer_pref}{scalings_pref}"
+    pred_tag = generate_convpaint_tag(layer_list, scalings, model)
+
     # Load the image and labels
     # We only need to load the image if we want to show the results and it is specified that the image should be shown
-    if not show_res: show_gt = False    
+    if not show_res: show_gt = False
     img_data = get_cellpose_img_data(folder_path, img_num, load_img=True, load_gt=show_gt, load_scribbles=True, mode=mode, bin=bin, suff=suff, load_pred=False, pred_tag=pred_tag)
     image = img_data["img"]
     labels = img_data["scribbles"]
@@ -187,10 +186,7 @@ def pred_cellpose_ilastik(folder_path, img_num, mode="all", bin="NA", suff=False
     labels = img_data["scribbles"]
     
     # Predict the image
-    if image.ndim > 2:
-        prediction = pixel_classification_ilastik_multichannel(image, labels)
-    else:
-        prediction = pixel_classification_ilastik(image, labels)
+    prediction = selfpred_ilastik(image, labels)
 
     if save_res:
         # Save the scribble annotation as an image
