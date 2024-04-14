@@ -23,6 +23,7 @@ cluster_run03 - create scribbles with approx. 10% using 1.25 bin and scribble_wi
 	pred06: prediction on ~10% scribbles using diff. Convpaint settings...
 	pred07: prediction on ~10% scribbles using Ilastik
 	pred07b: same as 07, on the remaining pictures after fixing selection of ilastik_function (single vs. multi_channel)
+	pred08: prediciton on all 3 bins with DINO
 
 
 
