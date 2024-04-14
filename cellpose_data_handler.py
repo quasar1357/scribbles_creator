@@ -208,6 +208,37 @@ def pred_cellpose_ilastik(folder_path, img_num, mode="all", bin="NA", suff=False
 
 
 
+def pred_cellpose_dino(folder_path, img_num, mode="all", bin="NA", suff=False, dinov2_model='s', dinov2_layers=(), dinov2_scales=(), upscale_order=1, random_state=None, save_res=False, show_res=False, show_gt=True):
+    # We only need to load the image if we want to show the results and it is specified that the image should be shown
+    if not show_res: show_gt = False        
+    # Load the image, labels and the ground truth
+    img_data = get_cellpose_img_data(folder_path, img_num, load_img=True, load_gt=show_gt, load_scribbles=True, mode=mode, bin=bin, suff=suff, load_pred=False, pred_tag="dino")
+    image = img_data["img"]
+    labels = img_data["scribbles"]
+
+    # Predict the image
+    prediction = selfpred_dino(image, labels, dinov2_model=dinov2_model, dinov2_layers=dinov2_layers, dinov2_scales=dinov2_scales, upscale_order=upscale_order, random_state = random_state)
+
+    if save_res:
+        # Save the scribble annotation as an image
+        pred_path = img_data["pred_path"]
+        pred_image = Image.fromarray(prediction)
+        pred_image.save(pred_path)
+
+    if show_res:
+        # Show the results
+        v = napari.Viewer()
+        v.add_image(image)
+        if show_gt:
+            ground_truth = img_data["gt"]
+            v.add_labels(ground_truth)
+        v.add_labels(prediction, name="dino")
+        v.add_labels(labels)
+
+    return prediction
+
+
+
 def analyse_cellpose_single_file(folder_path, img_num, mode="all", bin=0.1, suff=False, pred_tag="convpaint", show_res=False):
 
     img_data = get_cellpose_img_data(folder_path, img_num, load_img=show_res, load_gt=True, load_scribbles=True, mode=mode, bin=bin, suff=suff, load_pred=True, pred_tag=pred_tag)
