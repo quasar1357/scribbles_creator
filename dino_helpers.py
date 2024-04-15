@@ -5,6 +5,8 @@ from sklearn.ensemble import RandomForestClassifier
 
 
 def selfpred_dino(image, labels, dinov2_model='s', dinov2_layers=(), dinov2_scales=(), upscale_order=1, pad_mode='reflect', extra_pads=(), vgg16_layers=None, vgg16_scales=(), append_image_as_feature=False, random_state=None):
+    if len(image.shape) == 3 and image.shape[0] < 4:
+        image = np.moveaxis(image, 0, -1) # DINOv2 expects (H, W, C)    
     feature_space = extract_feature_space(image, dinov2_model, dinov2_layers, dinov2_scales, upscale_order, pad_mode, extra_pads, vgg16_layers, vgg16_scales, append_image_as_feature)
     # Extract annotated pixels
     features_annot, targets = extract_annotated_pixels(feature_space, labels, full_annotation=False)
