@@ -1,2 +1,4 @@
 run01   just testing the pipeline on some images... (locally)
 run02   create scribbles and run predictions on 23 images (locally) to get a good idea of the models' performances
+run03	run on 460 images, skip one where scribble_creator struggled (1792 or so)...
+run04	just some local tests to verify run03
