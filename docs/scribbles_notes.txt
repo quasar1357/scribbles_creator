@@ -1,8 +1,8 @@
 
 
 Observations:
-V4 does not perform as well on certain images, e.g. 500 and 400
-V4 does not work with later layers --> would need bigger boxes
+V4 does not perform as well on certain images, e.g. 500 and 400 (cellpose)
+V4 does not work with later layers (when slim scribbles) --> would need bigger boxes
 
 
 
