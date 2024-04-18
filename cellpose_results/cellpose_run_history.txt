@@ -10,19 +10,19 @@ cluster_run01 - ~100 images at a time (not complete), some scribbles not ideal i
 
 cluster_run02 - optimized for edge cases (min 1 pixels etc.; not sped up lines yet)
 	pred02 - some weird predicitons for convpaint ???
-	450 - test on image with weird prediciton for convpaint...
+	test450 - test on image with weird prediciton for convpaint...
 	pred03 - predict again with fixed seed (= 123) --> similar weird predicitons
-	pred04 - predict again with same seed (= 123) and channel extraction and normalization
+!	pred04 - predict again with same seed (= 123) and channel extraction and normalization
 	pred05 - test convpaint scalings and layers: predict every 10th image, but with 3 layer and 4 scaling combinations (= total 12x)
 		run01: was interrupted by errors, but still some results
-		run02: only done with l-0 and l-0-2 but all scalings (0.1% scribbles)
+!		run02: only done with l-0 and l-0-2 but all scalings (0.1% scribbles)
 		test: just to make sure the results can be reproduced with img 500, and testing different seeds... (x: seed=123, y: seed=5)
-		run03: same as run02 but with 1% scribbles
+!		run03: same as run02 but with 1% scribbles
 cluster_run03 - create scribbles with approx. 10% using 1.25 bin and scribble_width=6 for images {0..539..10}
 	NOTE: scribbles with suffix _x_ were dilated (scribble_width=6)
-	pred06: prediction on ~10% scribbles using diff. Convpaint settings...
-	pred07: prediction on ~10% scribbles using Ilastik
-	pred07b: same as 07, on the remaining pictures after fixing selection of ilastik_function (single vs. multi_channel)
+!	pred06: prediction on ~10% scribbles using diff. Convpaint settings...
+!	pred07: prediction on ~10% scribbles using Ilastik
+(!)	pred07b: same as 07, on the remaining pictures after fixing selection of ilastik_function (single vs. multi_channel)
 
-pred08: prediciton on the 3 bins with DINO --> accidentally took 0.01% bin instead of 1%
-pred08b: do same with 1% bin
+!	pred08: prediciton on the 3 bins with DINO --> accidentally took 0.01% bin instead of 1%
+(!)	pred08b: do same with 1% bin

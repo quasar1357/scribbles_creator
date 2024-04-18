@@ -5,6 +5,18 @@ from sklearn.ensemble import RandomForestClassifier
 
 
 def selfpred_dino(image, labels, dinov2_model='s', dinov2_layers=(), dinov2_scales=(), upscale_order=1, pad_mode='reflect', extra_pads=(), vgg16_layers=None, vgg16_scales=(), append_image_as_feature=False, random_state=None):
+    '''
+    Predict full semantic segmentation of an image using labels for this same image with ConvPaint and DINOv2 (from dino_paint) as feature extractor (train and predict on same image).
+    INPUT:
+        image (np.ndarray): image to predict on; shape (H, W, C) or (C, H, W)
+        labels (np.ndarray): labels for the image; shape (H, W), same dimensions as image
+        dinov2_model (str), dinov2_layers (tuple of int), dinov2_scales (tuple of int), upscale_order (int), pad_mode (str), extra_pads (tuple): DINOv2 parameters to use for feature extraction
+        vgg16_layers (list of int), vgg16_scales (tuple of int): VGG16 parameters to use for feature extraction
+        append_image_as_feature (bool): whether to append the image as a feature
+        random_state (int): random state for the random forest classifier
+    OUTPUTS:
+        predicted (np.ndarray): predicted segmentation. Shape (H, W)
+    '''    
     if len(image.shape) == 3 and image.shape[0] < 4:
         image = np.moveaxis(image, 0, -1) # DINOv2 expects (H, W, C)    
     feature_space = extract_feature_space(image, dinov2_model, dinov2_layers, dinov2_scales, upscale_order, pad_mode, extra_pads, vgg16_layers, vgg16_scales, append_image_as_feature)
@@ -15,7 +27,7 @@ def selfpred_dino(image, labels, dinov2_model='s', dinov2_layers=(), dinov2_scal
     if random_state is None:
         random_forest = train_classifier(features, targets)
     else:
-        # Do RF training manually (copied from convpaint utils) to have access to seed/random_state:
+        # Do RF training manually (copied from napari-convpaint utils) to have access to seed/random_state:
         X, X_test, y, y_test = train_test_split(features, targets,
                                                 test_size=0.2,
                                                 random_state=42)
