@@ -1,5 +1,6 @@
 numpy
 pandas
+skimage
 napari[all]
 git+https://github.com/quasar1357/dino_paint.git
 git+https://github.com/guiwitz/napari-convpaint.git
