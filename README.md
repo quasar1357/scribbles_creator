@@ -32,3 +32,6 @@ Since steps 1)-3) are different for the two datasets, separate notebooks are pro
 
 ## Results
 The results folders contain results from my own test-runs. They can be used as references.
+
+## Issues
+If you encounter any problems, please file an [issue](https://github.com/quasar1357/scribbles_creator/issues) along with a detailed description.
