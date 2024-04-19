@@ -12,7 +12,7 @@ You can install scribbles_creator via pip using
 After this, you can simply import the functions needed in Python (e.g. from scribbles_creator import create_even_scribbles).
 
 ## Main script
-[scribbles_creator.py](scribbles_creator.py) is the core script, providing the functions to create scribble annotations based on a ground truth. The most convenient function for straight foward scribbles creation is create_even_scribbles(ground_truth, percent_annotation). Give it a try! You can adjust the scribble width (scribble_width) and the approximate size of individual scribbles (sq_scaling, i.e. the scaling of the square around the scribbles compared to the image) with the according parameters.
+[scribbles_creator.py](scribbles_creator.py) is the core script, providing the functions to create scribble annotations based on a ground truth. The most convenient function for straight foward scribbles creation is create_even_scribbles(ground_truth, percent_annotation). Give it a try! You can adjust the scribbles width (scribbles_width) and the approximate size of individual scribbles (sq_scaling, i.e. the scaling of the square around the scribbles compared to the image) with the according parameters.
 
 ## Helper functions for segmentations
 The scripts [convpaint_helper.py](convpaint_helper.py), [ilastik_helper.py](ilastik_helper.py) and [dino_helper.py](dino_helper.py) provide functions for semantic segmentation (here limited to training and prediction of the same image) using the three tools Convpaint (with the CNN "VGG16" as feature extractor), Ilastik (using classical filters) and DINOv2 as a feature extractor (implemented in the Convpaint framework in my work [dino_paint](https://github.com/quasar1357/dino_paint)).
