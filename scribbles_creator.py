@@ -18,8 +18,8 @@ def create_even_scribbles(ground_truth, max_perc=0.2, sq_scaling=False, mode="al
         scribble (numpy array): the scribble annotation
     '''    
     # Calculate parameters for the scribble annotation
-    num_annots = {"lines": 1, "prim_sk": 1, "sec_sk": 1, "both_sk" : 2, "all": 3}
-    max_perc_per_type = max_perc / num_annots[mode]
+    num_annots = {"lines": 1, "prim_sk": 1, "sec_sk": 1, "both_sk" : 2, "all": 3}[mode]
+    max_perc_per_type = max_perc / num_annots
     if not sq_scaling: sq_scaling = 400/(max_perc**0.5)
     sq_size = (ground_truth.shape[0] * ground_truth.shape[1] // sq_scaling) ** 0.5
     sq_size = int(sq_size)
@@ -130,12 +130,12 @@ def scribble_class(gt, class_val, scribble_width=1, sk_max_perc=0.05, sq_size=20
             print(f"sk_max_pix: {sk_max_pix:.2f}, sq_size: {sq_size}, sk_pix_range: {sq_pix_range}")
         # If the primary skeleton is needed, pick squares of it
         if mode in ("prim_sk", "both_sk", "all"):
-            prim_sk_squares = pick_sk_squares(prim_sk, sk_max_pix=sk_max_pix, sq_size=sq_size, sq_pix_range=sq_pix_range)
+            prim_sk_squares = pick_sk_squares(prim_sk, sk_max_pix=sk_max_pix, sq_size=sq_size, sq_pix_range=sq_pix_range, print_steps=print_steps)
             if print_steps:
                 print(f"   prim_sk_squares pix: {np.sum(prim_sk_squares)} = {np.sum(prim_sk_squares)/np.sum(gt_class_mask)*100:.2f}%")    
         # If the secondary skeleton is needed, pick squares of it
         if mode in ("sec_sk", "both_sk", "all"):
-            sec_sk_squares = pick_sk_squares(sec_sk, sk_max_pix=sk_max_pix, sq_size=sq_size, sq_pix_range=sq_pix_range)
+            sec_sk_squares = pick_sk_squares(sec_sk, sk_max_pix=sk_max_pix, sq_size=sq_size, sq_pix_range=sq_pix_range, print_steps=print_steps)
             if print_steps:
                 print(f"   sec_sk_squares pix: {np.sum(sec_sk_squares)} = {np.sum(sec_sk_squares)/np.sum(gt_class_mask)*100:.2f}%")
         # If both skeletons are needed, combine the squares of both skeletons
@@ -155,7 +155,7 @@ def scribble_class(gt, class_val, scribble_width=1, sk_max_perc=0.05, sq_size=20
         line_pix_range = (min(sq_size//2, int(lines_max_pix)), sq_size*2) if not line_pix_range else line_pix_range
         if print_steps:
             print(f"lines_max_pix: {lines_max_pix:.2f}, line_pix_range: {line_pix_range}")
-        lines = create_lines(prim_sk, gt_class_mask, lines_max_pix, line_pix_range)
+        lines = create_lines(prim_sk, gt_class_mask, lines_max_pix, line_pix_range, print_steps=print_steps)
         if print_steps:
             print(f"   lines pix: {np.sum(lines)} = {np.sum(lines)/np.sum(gt_class_mask)*100:.2f}%")
     if mode =="all":
@@ -208,7 +208,7 @@ def double_sk_class(gt_mask, closing_prim=0, closing_sec=0):
 
     return prim_sk, sec_sk
 
-def pick_sk_squares(sk, sk_max_pix=20, sq_size=20, sq_pix_range=(10, 40)):
+def pick_sk_squares(sk, sk_max_pix=20, sq_size=20, sq_pix_range=(10, 40), print_steps=False):
     '''
     Pick random squares from the skeleton.
     Input:
@@ -254,7 +254,8 @@ def pick_sk_squares(sk, sk_max_pix=20, sq_size=20, sq_pix_range=(10, 40)):
             sq_size = sq_size//2
             # Adjust the range accordingly
             sq_pix_range = (min(sq_size//2, int(sk_max_pix)), sq_pix_range[1])
-            print("Adjusting square size and range to", sq_size, sq_pix_range)
+            if print_steps:
+                print("Adjusting square size and range to", sq_size, sq_pix_range)
             all_squares = pick_sk_squares(sk, sk_max_pix, sq_size, sq_pix_range)
         else:
             print("ERROR: No squares were added!")
@@ -279,7 +280,7 @@ def get_square(mask, coord, sq_size=20):
     square_mask[coord[0]-red:coord[0]+inc, coord[1]-red:coord[1]+inc] = mask[coord[0]-red:coord[0]+inc, coord[1]-red:coord[1]+inc]
     return square_mask
 
-def create_lines(sk, gt_mask, lines_max_pix=20, line_pix_range=(10, 40), dist_to_edge=2):
+def create_lines(sk, gt_mask, lines_max_pix=20, line_pix_range=(10, 40), dist_to_edge=2, print_steps=False):
     '''
     Create lines leading from a skeleton to the edge of the mask.
     Input:
@@ -326,13 +327,15 @@ def create_lines(sk, gt_mask, lines_max_pix=20, line_pix_range=(10, 40), dist_to
         # NOTE: if the upper bound is still too low, this is not a big deal, because we will instead shorten the lines
         if line_pix_range[0] > 1: # or line_pix_range[1] > max(gt_mask.shape) // 2:
             line_pix_range = (line_pix_range[0]//2, line_pix_range[1] * 2)
-            print("Adjusting line range to" , line_pix_range)
+            if print_steps:
+                print("Adjusting line range to" , line_pix_range)
             all_lines = create_lines(sk, gt_mask, lines_max_pix, line_pix_range)
         # If this did not work (i.e. the lines are longer than the lines_max), shorten the lines by increasing the distance to the edge
         elif dist_to_edge < max(gt_mask.shape) // 2:
             # Take a minimum distance of 2 pixels to the edge, to not get stuck at 1 pixel...
             new_dist_to_edge = max(2, int(dist_to_edge * 1.5))
-            print("Adjusting distance to edge to", new_dist_to_edge)
+            if print_steps:
+                print("Adjusting distance to edge to", new_dist_to_edge)
             all_lines = create_lines(sk, gt_mask, lines_max_pix, line_pix_range, new_dist_to_edge)
         else:
             print("ERROR: No lines were added!")
