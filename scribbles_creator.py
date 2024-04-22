@@ -297,12 +297,12 @@ def create_lines(sk, gt_mask, lines_max_pix=20, line_pix_range=(10, 40), dist_to
     # Shuffle the coordinates of the skeleton to loop over them in a random order
     sk_coordinates = np.argwhere(sk)
     np.random.shuffle(sk_coordinates)
-    # Initialize the mask of all lines
+    # Initialize the mask of all picked lines and other parameters
     all_lines = np.zeros_like(gt_mask, dtype=np.bool8)
     added_pix = 0
     idx = 0
     overshoots = 0
-    # Loop until the pixels in all lines approach the threshold or the end of all pixels in the skeleton is reached
+    # Loop until the pixels in all lines approach the threshold (keeps overshooting) or the end of all pixels in the skeleton is reached
     while overshoots < 100 and idx < pix_in_sk:
         # Draw a line from the skeleton to the edge of the mask
         current_coordinate = sk_coordinates[idx]
@@ -324,16 +324,18 @@ def create_lines(sk, gt_mask, lines_max_pix=20, line_pix_range=(10, 40), dist_to
     # If no lines were added, try again with adjusted parameters
     if added_pix == 0:
         # If the line range is too small, make it larger (especially decreasing the minimum) and try again
-        # NOTE: if the upper bound is still too low, this is not a big deal, because we will instead shorten the lines
+        # NOTE: if the upper bound is still too low, this is not a big deal, because we can instead shorten the lines
         if line_pix_range[0] > 1: # or line_pix_range[1] > max(gt_mask.shape) // 2:
             line_pix_range = (line_pix_range[0]//2, line_pix_range[1] * 2)
             if print_steps:
                 print("Adjusting line range to" , line_pix_range)
             all_lines = create_lines(sk, gt_mask, lines_max_pix, line_pix_range)
-        # If this did not work (i.e. the lines are longer than the lines_max), shorten the lines by increasing the distance to the edge
+        # If this did not work (i.e. the lines are longer than the lines_max_pix), shorten the lines by increasing the distance to the edge
         elif dist_to_edge < max(gt_mask.shape) // 2:
+            # Ensure that the steps are not becoming too large to fit inside the lines_max_pix
+            dist_increase = min(int(dist_to_edge * 0.5), int(np.ceil(0.75 * lines_max_pix)))
             # Take a minimum distance of 2 pixels to the edge, to not get stuck at 1 pixel...
-            new_dist_to_edge = max(2, int(dist_to_edge * 1.5))
+            new_dist_to_edge = max(2, dist_to_edge + dist_increase)
             if print_steps:
                 print("Adjusting distance to edge to", new_dist_to_edge)
             all_lines = create_lines(sk, gt_mask, lines_max_pix, line_pix_range, new_dist_to_edge)
