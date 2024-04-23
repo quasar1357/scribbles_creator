@@ -298,7 +298,7 @@ def get_square(mask, coord, sq_size=20):
     square_mask[coord[0]-red:coord[0]+inc, coord[1]-red:coord[1]+inc] = mask[coord[0]-red:coord[0]+inc, coord[1]-red:coord[1]+inc]
     return square_mask
 
-def create_lines(sk, gt_mask, lines_max_pix=20, line_pix_range=(10, 40), dist_to_edge=2, print_details=True):
+def create_lines(sk, gt_mask, lines_max_pix=20, line_pix_range=(10, 40), line_crop=2, print_details=True):
     '''
     Create lines leading from a skeleton to the edge of the mask.
     Input:
@@ -306,7 +306,7 @@ def create_lines(sk, gt_mask, lines_max_pix=20, line_pix_range=(10, 40), dist_to
         gt_mask (numpy array): the ground truth mask
         lines_max_pix (int): the maximum number of pixels that should be picked with all lines
         line_pix_range (int): the range that the number of pixels for a single line shall be in
-        dist_to_edge (int): the distance of the line to the edge
+        line_crop (int): the crop of the line (on both sides; i.e. distance to edge and and skeleton will each be half of the crop)
     Output:
         all_lines (numpy array): the mask of all lines
     '''
@@ -322,13 +322,13 @@ def create_lines(sk, gt_mask, lines_max_pix=20, line_pix_range=(10, 40), dist_to
     overshoots = 0
     tried_lines = []
     if print_details:
-        print("--- Sampling lines: pix_in_sk", pix_in_sk, "indx_step", idx_step, "dist_to_edge", dist_to_edge)
+        print("--- Sampling lines: pix_in_sk", pix_in_sk, "indx_step", idx_step, "line_crop", line_crop)
     # Loop until the pixels in all lines approach the threshold (keeps overshooting) or the end of all pixels in the skeleton is reached
     while overshoots < 100 and idx < pix_in_sk:
         # Draw a line from the skeleton to the edge of the mask
         current_coordinate = sk_coordinates[idx]
         idx += idx_step
-        line = get_line(current_coordinate, gt_mask, dist_to_edge=dist_to_edge)
+        line = get_line(current_coordinate, gt_mask, line_crop=line_crop)
         pix_in_line = np.sum(line)
         tried_lines.append(line)
         if print_details:
@@ -354,14 +354,11 @@ def create_lines(sk, gt_mask, lines_max_pix=20, line_pix_range=(10, 40), dist_to
             all_lines = np.logical_or(all_lines, line)
             added_pix = np.sum(all_lines)
     if print_details:
-        tried_line_lengths = [np.sum(line) for line in tried_lines]
-        tried_lines_tot_pix = np.sum(tried_line_lengths)
-        tries = len(tried_lines)
-        avg_length_tried = round(tried_lines_tot_pix / tries, 2)
+        avg_length_tried = get_lines_stats(tried_lines)
         print("--- Done sampling lines: avg_length_tried", avg_length_tried)
     return all_lines, tried_lines
 
-def create_lines_optim(sk, gt_mask, lines_max_pix=20, line_pix_range=(10, 40), dist_to_edge=2, print_steps=False):
+def create_lines_optim(sk, gt_mask, lines_max_pix=20, line_pix_range=(10, 40), line_crop=2, print_steps=False):
     '''
     Create lines leading from a skeleton to the edge of the mask. Use the base function and adjust the parameters if no lines were added.
     Input:
@@ -369,12 +366,12 @@ def create_lines_optim(sk, gt_mask, lines_max_pix=20, line_pix_range=(10, 40), d
         gt_mask (numpy array): the ground truth mask
         lines_max_pix (int): the maximum number of pixels that should be picked with all lines
         line_pix_range (int): the range that the number of pixels for a single line shall be in
-        dist_to_edge (int): the distance of the line to the edge
+        line_crop (int): the crop of the line (on both sides; i.e. distance to edge and and skeleton will each be half of the crop)
     Output:
         lines (numpy array): the mask of all lines
     '''
-    lines, tried_lines = create_lines(sk, gt_mask, lines_max_pix, line_pix_range, dist_to_edge)
-    avg_length_tried = get_avg_line_length(tried_lines)
+    lines, tried_lines = create_lines(sk, gt_mask, lines_max_pix, line_pix_range, line_crop)
+    avg_length_tried = get_lines_stats(tried_lines)
     added_pix = np.sum(lines)
     line_crop = 0
     # If no lines were added, try again with adjusted parameters
@@ -386,53 +383,57 @@ def create_lines_optim(sk, gt_mask, lines_max_pix=20, line_pix_range=(10, 40), d
             if print_steps:
                 print("Adjusting line range to", line_pix_range)
     
-
         # If this did not work (i.e. the lines are longer than the lines_max_pix), shorten the lines by increasing the distance to the edge
-        elif dist_to_edge < max(gt_mask.shape):
+        elif line_crop < max(gt_mask.shape) / 2:
             # If the average length of the lines tried in the last run is still far from the lines_max_pix, increase the distance to the edge
             if avg_length_tried > lines_max_pix * 5:
-                dist_increase = int(np.ceil((avg_length_tried - lines_max_pix) * 0.75))
-                print(f"avg_length_tried ({avg_length_tried}) > 5x lines_max_pix ({lines_max_pix}) --> dist_increase = ({avg_length_tried} - {lines_max_pix}) * 0.75 = {dist_increase}")
+                crop_increase = int(np.ceil((avg_length_tried - lines_max_pix) * 0.75))
+                print(f"avg_length_tried ({avg_length_tried}) > 5x lines_max_pix ({lines_max_pix}) --> crop_increase = ({avg_length_tried} - {lines_max_pix}) * 0.75 = {crop_increase}")
             # Ensure that the steps are not becoming too large to fit inside the lines_max_pix
             else:                               
-                dist_increase = int(np.ceil(0.75 * lines_max_pix))
-                print(f"avg_length_tried ({avg_length_tried}) < 5x lines_max_pix ({lines_max_pix}) --> dist_increase = {dist_increase}")
-            dist_to_edge = dist_to_edge + dist_increase
+                crop_increase = int(np.ceil(0.75 * lines_max_pix))
+                print(f"avg_length_tried ({avg_length_tried}) < 5x lines_max_pix ({lines_max_pix}) --> crop_increase = {crop_increase}")
+            line_crop = line_crop + crop_increase
             if print_steps:
-                print("Adjusting distance to edge to", dist_to_edge)
+                print("Adjusting lines_crop to", line_crop)
         else:
             print("ERROR: No lines were added!")
             break
         lines, tried_lines = create_lines(sk, gt_mask, lines_max_pix, line_pix_range, line_crop=line_crop)
-        avg_length_tried = get_avg_line_length(tried_lines)
+        avg_length_tried = get_lines_stats(tried_lines)
         added_pix = np.sum(lines)
     return lines
 
-def get_avg_line_length(line_list):
+def get_lines_stats(line_list):
     tried_line_lengths = [np.sum(line) for line in line_list]
     tried_lines_tot_pix = np.sum(tried_line_lengths)
     tries = len(line_list)
-    avg_length_tried = round(line_list_tot_pix / tries, 2)
-    return avg_length_tried
+    min_length_tried = np.min(tried_line_lengths)
+    max_length_tried = np.max(tried_line_lengths)
+    avg_length_tried = np.mean(tried_line_lengths)
+    return round(avg_length_tried, 2)
 
-def get_line(coord, gt_mask, dist_to_edge=2):
+def get_line(coord, gt_mask, line_crop=2):
     '''
     Take a point on the skeleton (= True in the mask) and draw a line to the nearest edge point of the ground truth mask.
     Input:
         coord (tuple): the coordinates of the starting point
         gt_mask (numpy array): the ground truth mask
-        dist_to_edge (int): the distance of the line to the edge
+        line_crop (int): the crop of the line (on both sides; i.e. distance to edge and and skeleton will each be half of the crop)
     Output:
-        shortest_path_mask (numpy array): the mask of the shortest path
+        final_path_mask (numpy array): the mask of the shortest path, optionally cropped on both sides
     '''
-    # Erode the gt_mask, so that the line will have a distance to the edge
-    if dist_to_edge:
-        eroded_gt_mask = erosion(gt_mask, square(dist_to_edge*2))
+    shortest_path_mask = point_to_edge(coord, gt_mask)
+    # Crop the line as specified
+    if line_crop:
+        start, end = int(np.floor(line_crop/2)), int(- np.ceil(line_crop/2))
+        coords = np.argwhere(shortest_path_mask)
+        final_path_mask = np.zeros_like(shortest_path_mask)
+        for coord in coords[start:end]:
+            final_path_mask[coord[0], coord[1]] = True
     else:
-        eroded_gt_mask = gt_mask
-    # Find the shortest path from the random point to the edge of the mask and return the mask of the path
-    shortest_path_mask = point_to_edge(coord, eroded_gt_mask)
-    return shortest_path_mask
+        final_path_mask = shortest_path_mask
+    return final_path_mask
 
 def point_to_edge(start_point, segmentation_mask):
     '''
