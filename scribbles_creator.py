@@ -208,7 +208,7 @@ def double_sk_class(gt_mask, closing_prim=0, closing_sec=0):
 
     return prim_sk, sec_sk
 
-def pick_sk_squares(sk, sk_max_pix=20, sq_size=20, sq_pix_range=(10, 40), print_steps=False):
+def pick_sk_squares(sk, sk_max_pix=20, sq_size=20, sq_pix_range=(10, 40)):
     '''
     Pick random squares from the skeleton.
     Input:
@@ -260,7 +260,7 @@ def pick_sk_squares_optim(sk, sk_max_pix=20, sq_size=20, sq_pix_range=(10, 40), 
     Output:
         squares (numpy array): the mask of all squares
     '''
-    squares = pick_sk_squares(sk, sk_max_pix, sq_size, sq_pix_range, print_steps)
+    squares = pick_sk_squares(sk, sk_max_pix, sq_size, sq_pix_range)
     added_pix = np.sum(squares)
     # If no squares were added, try again with smaller squares and a range starting at a lower value (allowing fewer pixels in a square)
     while added_pix == 0:
@@ -272,7 +272,7 @@ def pick_sk_squares_optim(sk, sk_max_pix=20, sq_size=20, sq_pix_range=(10, 40), 
             sq_pix_range = (min(sq_size//2, int(sk_max_pix)), sq_pix_range[1])
             if print_steps:
                 print("Adjusting square size and range to", sq_size, sq_pix_range)
-            squares = pick_sk_squares(sk, sk_max_pix, sq_size, sq_pix_range, print_steps=print_steps)
+            squares = pick_sk_squares(sk, sk_max_pix, sq_size, sq_pix_range)
             added_pix = np.sum(squares)
         else:
             print("ERROR: No squares were added!")
@@ -298,7 +298,7 @@ def get_square(mask, coord, sq_size=20):
     square_mask[coord[0]-red:coord[0]+inc, coord[1]-red:coord[1]+inc] = mask[coord[0]-red:coord[0]+inc, coord[1]-red:coord[1]+inc]
     return square_mask
 
-def create_lines(sk, gt_mask, lines_max_pix=20, line_pix_range=(10, 40), dist_to_edge=2, print_steps=False):
+def create_lines(sk, gt_mask, lines_max_pix=20, line_pix_range=(10, 40), dist_to_edge=2, print_details=True):
     '''
     Create lines leading from a skeleton to the edge of the mask.
     Input:
@@ -320,8 +320,9 @@ def create_lines(sk, gt_mask, lines_max_pix=20, line_pix_range=(10, 40), dist_to
     idx = 0
     idx_step = 1 #max(1, pix_in_sk // (50*lines_max_pix))
     overshoots = 0
-    tot = 0; tries = 0
-    print("--- Sampling lines: pix_in_sk", pix_in_sk, "indx_step", idx_step, "dist_to_edge", dist_to_edge)
+    tried_lines = []
+    if print_details:
+        print("--- Sampling lines: pix_in_sk", pix_in_sk, "indx_step", idx_step, "dist_to_edge", dist_to_edge)
     # Loop until the pixels in all lines approach the threshold (keeps overshooting) or the end of all pixels in the skeleton is reached
     while overshoots < 100 and idx < pix_in_sk:
         # Draw a line from the skeleton to the edge of the mask
@@ -329,25 +330,36 @@ def create_lines(sk, gt_mask, lines_max_pix=20, line_pix_range=(10, 40), dist_to
         idx += idx_step
         line = get_line(current_coordinate, gt_mask, dist_to_edge=dist_to_edge)
         pix_in_line = np.sum(line)
-        print("---    pix_in_line", pix_in_line, "added_pix", added_pix)
-        tot += pix_in_line; tries += 1
+        tried_lines.append(line)
+        if print_details:
+            print("---    pix_in_line", pix_in_line, "added_pix", added_pix)
+        if added_pix == lines_max_pix:
+            if print_details:
+                print("---    lines_max_pix reached (no improvement possible)")
+            break
         # If the line would push the total number of pixels on lines above the maximum, skip it and count the overshoot
         if added_pix + pix_in_line > lines_max_pix:
-            print("---    overshoot nr.", overshoots)
+            if print_details:
+                print("---    overshoot nr.", overshoots)
             overshoots += 1
             continue
         # If the line is too short or too long, skip it
         elif pix_in_line < line_pix_range[0] or pix_in_line > line_pix_range[1]:
-            print("---    outside line_pix_range", line_pix_range)
+            if print_details:
+                print("---    outside line_pix_range", line_pix_range)
             continue
         # If the line is valid, add it to the mask of all lines
         else:
             # Add the line to the mask of all lines
             all_lines = np.logical_or(all_lines, line)
             added_pix = np.sum(all_lines)
-    avg_length_tried = round(tot / tries, 2)
-    print("--- Done sampling lines: avg_length_tried", avg_length_tried)
-    return all_lines, avg_length_tried
+    if print_details:
+        tried_line_lengths = [np.sum(line) for line in tried_lines]
+        tried_lines_tot_pix = np.sum(tried_line_lengths)
+        tries = len(tried_lines)
+        avg_length_tried = round(tried_lines_tot_pix / tries, 2)
+        print("--- Done sampling lines: avg_length_tried", avg_length_tried)
+    return all_lines, tried_lines
 
 def create_lines_optim(sk, gt_mask, lines_max_pix=20, line_pix_range=(10, 40), dist_to_edge=2, print_steps=False):
     '''
@@ -361,8 +373,10 @@ def create_lines_optim(sk, gt_mask, lines_max_pix=20, line_pix_range=(10, 40), d
     Output:
         lines (numpy array): the mask of all lines
     '''
-    lines, avg_length_tried = create_lines(sk, gt_mask, lines_max_pix, line_pix_range, dist_to_edge, print_steps)
+    lines, tried_lines = create_lines(sk, gt_mask, lines_max_pix, line_pix_range, dist_to_edge)
+    avg_length_tried = get_avg_line_length(tried_lines)
     added_pix = np.sum(lines)
+    line_crop = 0
     # If no lines were added, try again with adjusted parameters
     while added_pix == 0:
         # If the line range is too small, make it larger (especially decreasing the minimum) and try again
@@ -370,27 +384,36 @@ def create_lines_optim(sk, gt_mask, lines_max_pix=20, line_pix_range=(10, 40), d
         if line_pix_range[0] > 1: # or line_pix_range[1] > max(gt_mask.shape) // 2:
             line_pix_range = (line_pix_range[0]//2, line_pix_range[1] * 2)
             if print_steps:
-                print("Adjusting line range to" , line_pix_range)
-            lines, avg_length_tried = create_lines(sk, gt_mask, lines_max_pix, line_pix_range, print_steps=print_steps)
-            added_pix = np.sum(lines)
+                print("Adjusting line range to", line_pix_range)
+    
+
         # If this did not work (i.e. the lines are longer than the lines_max_pix), shorten the lines by increasing the distance to the edge
-        elif dist_to_edge < max(gt_mask.shape) // 2:
+        elif dist_to_edge < max(gt_mask.shape):
+            # If the average length of the lines tried in the last run is still far from the lines_max_pix, increase the distance to the edge
+            if avg_length_tried > lines_max_pix * 5:
+                dist_increase = int(np.ceil((avg_length_tried - lines_max_pix) * 0.75))
+                print(f"avg_length_tried ({avg_length_tried}) > 5x lines_max_pix ({lines_max_pix}) --> dist_increase = ({avg_length_tried} - {lines_max_pix}) * 0.75 = {dist_increase}")
             # Ensure that the steps are not becoming too large to fit inside the lines_max_pix
-            # NOTE: since dist_to_edge is at least 2, the first term will always be at least 1; since lines_max_pix is at least 1, the second term will always be at least 1 (because of the ceil)
-            dist_increase = min(int(dist_to_edge * 0.5), int(np.ceil(0.5 * lines_max_pix)))
-            # If the average of the lines tried in the last run is still far from the lines_max_pix, increase the distance to the edge more
-            dist_increase = max(dist_increase, int(np.ceil((avg_length_tried - lines_max_pix) * 0.75)))
-            # print(int(dist_to_edge * 0.5), int(np.ceil(0.75 * lines_max_pix)), int((avg_length_tried - lines_max_pix) * 0.75))
-            # Take a minimum distance of 2 pixels to the edge, to not get stuck at 1 pixel...
-            dist_to_edge = max(2, dist_to_edge + dist_increase)
+            else:                               
+                dist_increase = int(np.ceil(0.75 * lines_max_pix))
+                print(f"avg_length_tried ({avg_length_tried}) < 5x lines_max_pix ({lines_max_pix}) --> dist_increase = {dist_increase}")
+            dist_to_edge = dist_to_edge + dist_increase
             if print_steps:
                 print("Adjusting distance to edge to", dist_to_edge)
-            lines, avg_length_tried = create_lines(sk, gt_mask, lines_max_pix, line_pix_range, dist_to_edge, print_steps=print_steps)
-            added_pix = np.sum(lines)
         else:
             print("ERROR: No lines were added!")
             break
+        lines, tried_lines = create_lines(sk, gt_mask, lines_max_pix, line_pix_range, line_crop=line_crop)
+        avg_length_tried = get_avg_line_length(tried_lines)
+        added_pix = np.sum(lines)
     return lines
+
+def get_avg_line_length(line_list):
+    tried_line_lengths = [np.sum(line) for line in line_list]
+    tried_lines_tot_pix = np.sum(tried_line_lengths)
+    tries = len(line_list)
+    avg_length_tried = round(line_list_tot_pix / tries, 2)
+    return avg_length_tried
 
 def get_line(coord, gt_mask, dist_to_edge=2):
     '''
