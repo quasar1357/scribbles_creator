@@ -298,7 +298,7 @@ def get_square(mask, coord, sq_size=20):
     square_mask[coord[0]-red:coord[0]+inc, coord[1]-red:coord[1]+inc] = mask[coord[0]-red:coord[0]+inc, coord[1]-red:coord[1]+inc]
     return square_mask
 
-def create_lines(sk, gt_mask, lines_max_pix=20, line_pix_range=(10, 40), line_crop=2, print_details=True):
+def create_lines(sk, gt_mask, lines_max_pix=20, line_pix_range=(10, 40), line_crop=2, print_details=False):
     '''
     Create lines leading from a skeleton to the edge of the mask.
     Input:
@@ -388,11 +388,11 @@ def create_lines_optim(sk, gt_mask, lines_max_pix=20, line_pix_range=(10, 40), l
             # If the average length of the lines tried in the last run is still far from the lines_max_pix, increase the distance to the edge
             if avg_length_tried > lines_max_pix * 5:
                 crop_increase = int(np.ceil((avg_length_tried - lines_max_pix) * 0.75))
-                print(f"avg_length_tried ({avg_length_tried}) > 5x lines_max_pix ({lines_max_pix}) --> crop_increase = ({avg_length_tried} - {lines_max_pix}) * 0.75 = {crop_increase}")
+                # print(f"avg_length_tried ({avg_length_tried:.2f}) > 5x lines_max_pix ({lines_max_pix:.2f}) --> crop_increase = ({avg_length_tried:.2f} - {lines_max_pix:.2f}) * 0.75 = {crop_increase}")
             # Ensure that the steps are not becoming too large to fit inside the lines_max_pix
             else:                               
                 crop_increase = int(np.ceil(0.75 * lines_max_pix))
-                print(f"avg_length_tried ({avg_length_tried}) < 5x lines_max_pix ({lines_max_pix}) --> crop_increase = {crop_increase}")
+                # print(f"avg_length_tried ({avg_length_tried:.2f}) < 5x lines_max_pix ({lines_max_pix:.2f}) --> crop_increase = {crop_increase}")
             line_crop = line_crop + crop_increase
             if print_steps:
                 print("Adjusting lines_crop to", line_crop)
@@ -411,7 +411,7 @@ def get_lines_stats(line_list):
     min_length_tried = np.min(tried_line_lengths)
     max_length_tried = np.max(tried_line_lengths)
     avg_length_tried = np.mean(tried_line_lengths)
-    return round(avg_length_tried, 2)
+    return avg_length_tried
 
 def get_line(coord, gt_mask, line_crop=2):
     '''
