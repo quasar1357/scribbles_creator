@@ -227,7 +227,7 @@ def pick_sk_squares(sk, sk_max_pix=20, sq_size=20, sq_pix_range=(10, 40)):
     all_squares = np.zeros_like(sk, dtype=np.bool8)
     added_pix = 0
     idx = 0
-    idx_step = 1 #max(1, pix_in_sk // (50*sk_max_pix))
+    idx_step = 1
     overshoots = 0
     # Loop until the total number of pixels in all squares approaches the threshold or the end of all pixels in the skeleton is reached
     while overshoots < 100 and idx < pix_in_sk:
@@ -262,8 +262,9 @@ def pick_sk_squares_optim(sk, sk_max_pix=20, sq_size=20, sq_pix_range=(10, 40), 
     '''
     squares = pick_sk_squares(sk, sk_max_pix, sq_size, sq_pix_range)
     added_pix = np.sum(squares)
-    # If no squares were added, try again with smaller squares and a range starting at a lower value (allowing fewer pixels in a square)
-    while added_pix == 0:
+    # If not enough squares were added, try again with smaller squares and a range starting at a lower value (allowing fewer pixels in a square)
+    # NOTE: We check at least for 1 pixel, since otherwise we would allow for empty scribbles; on the other hand we take floor, to ensure it cannot be exoected to be above the allowed maximum
+    while added_pix < max(1, np.floor(sk_max_pix * 0.75)):
         # Do not reduce the square size below 1
         if sq_size >= 2:
             # Reduce the square size
@@ -318,7 +319,7 @@ def create_lines(sk, gt_mask, lines_max_pix=20, line_pix_range=(10, 40), line_cr
     all_lines = np.zeros_like(gt_mask, dtype=np.bool8)
     added_pix = 0
     idx = 0
-    idx_step = 1 #max(1, pix_in_sk // (50*lines_max_pix))
+    idx_step = min(5, int(np.ceil(pix_in_sk/250))) # 1
     overshoots = 0
     tried_lines = []
     if print_details:
@@ -374,23 +375,23 @@ def create_lines_optim(sk, gt_mask, lines_max_pix=20, line_pix_range=(10, 40), l
     avg_length_tried = get_lines_stats(tried_lines)
     added_pix = np.sum(lines)
     line_crop = 0
-    # If no lines were added, try again with adjusted parameters
-    while added_pix == 0:
+    # If not enough lines were added, try again with adjusted parameters
+    # NOTE: We check at least for 1 pixel, since otherwise we would allow for empty scribbles; on the other hand we take floor, to ensure it cannot be expected to be above the allowed maximum
+    while added_pix < max(1, np.floor(lines_max_pix * 0.75)):
         # If the line range is too small, make it larger (especially decreasing the minimum) and try again
         # NOTE: if the upper bound is still too low, this is not a big deal, because we can instead shorten the lines
         if line_pix_range[0] > 1: # or line_pix_range[1] > max(gt_mask.shape) // 2:
             line_pix_range = (line_pix_range[0]//2, line_pix_range[1] * 2)
             if print_steps:
                 print("Adjusting line range to", line_pix_range)
-    
-        # If this did not work (i.e. the lines are longer than the lines_max_pix), shorten the lines by increasing the distance to the edge
+        # If this did not work (i.e. the lines are longer than the lines_max_pix), shorten the lines by increasing the lines crop
         elif line_crop < max(gt_mask.shape) / 2:
-            # If the average length of the lines tried in the last run is still far from the lines_max_pix, increase the distance to the edge
+            # If the average length of the lines tried in the last run is still far from the lines_max_pix, increase the lines crop
             if avg_length_tried > lines_max_pix * 5:
                 crop_increase = int(np.ceil((avg_length_tried - lines_max_pix) * 0.75))
                 # print(f"avg_length_tried ({avg_length_tried:.2f}) > 5x lines_max_pix ({lines_max_pix:.2f}) --> crop_increase = ({avg_length_tried:.2f} - {lines_max_pix:.2f}) * 0.75 = {crop_increase}")
             # Ensure that the steps are not becoming too large to fit inside the lines_max_pix
-            else:                               
+            else:
                 crop_increase = int(np.ceil(0.75 * lines_max_pix))
                 # print(f"avg_length_tried ({avg_length_tried:.2f}) < 5x lines_max_pix ({lines_max_pix:.2f}) --> crop_increase = {crop_increase}")
             line_crop = line_crop + crop_increase
