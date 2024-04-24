@@ -6,11 +6,11 @@ pred01 - images 0-10 (scribbles local)
 	Ch1 - only one channel because ilastik not ready for multichannel yet
 	multichannel
 
-cluster_run01 - ~100 images at a time (not complete), some scribbles not ideal in edge cases
+scribbles_run01 - ~100 images at a time (not complete), some scribbles not ideal in edge cases
 
-cluster_run02 - optimized for edge cases (min 1 pixels etc.; not sped up lines yet)
+scribbles_run02 - optimized for edge cases (min 1 pixels etc.; not sped up lines yet)
 	pred02 - some weird predicitons for convpaint ???
-	test450 - test on image with weird prediciton for convpaint...
+		test450 - test on image with weird prediciton for convpaint...
 	pred03 - predict again with fixed seed (= 123) --> similar weird predicitons
 !	pred04 - predict again with same seed (= 123) and channel extraction and normalization
 	pred05 - test convpaint scalings and layers: predict every 10th image, but with 3 layer and 4 scaling combinations (= total 12x)
@@ -26,3 +26,8 @@ cluster_run03 - create scribbles with approx. 10% using 1.25 bin and scribble_wi
 
 !	pred08: prediciton on the 3 bins with DINO --> accidentally took 0.01% bin instead of 1%
 (!)	pred08b: do same with 1% bin
+
+
+
+
+scribbles_run03
