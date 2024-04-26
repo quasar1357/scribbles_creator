@@ -293,8 +293,9 @@ def pick_sk_squares_optim(sk, sk_max_pix=20, sk_margin=0.75, sq_size=20, sq_pix_
             else:
                 print(f"WARNING: It was not possible to sample {sk_margin * 100}% of the requested pixels. Only {added_pix} pixels in squares were added!")
             break
-        # Create new squares with the adjusted parameters and try a gain
-        squares = pick_sk_squares(sk, sk_max_pix, sq_size, sq_pix_range)
+        # Create new squares with the adjusted parameters and try a gain; add them to the squares
+        new_squares = pick_sk_squares(sk, sk_max_pix, sq_size, sq_pix_range)
+        squares = np.logical_or(squares, new_squares)
         added_pix = np.sum(squares)
     return squares
 
@@ -424,9 +425,10 @@ def create_lines_optim(sk, gt_mask, lines_max_pix=20, lines_margin=0.75, line_pi
             else:
                 print(f"WARNING:  It was not possible to sample {lines_margin * 100}% of the requested pixels. Only {added_pix} pixels in lines were added!")
             break
-        # Create new lines with the adjusted parameters and try a gain
-        lines, tried_lines = create_lines(sk, gt_mask, lines_max_pix, line_pix_range, line_crop=line_crop)
+        # Create new lines with the adjusted parameters and try a gain; add them to the lines
+        new_lines, tried_lines = create_lines(sk, gt_mask, lines_max_pix, line_pix_range, line_crop=line_crop)
         avg_length_tried = get_lines_stats(tried_lines)
+        lines = np.logical_or(lines, new_lines)
         added_pix = np.sum(lines)
     return lines
 
