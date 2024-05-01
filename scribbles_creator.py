@@ -5,7 +5,7 @@ from scipy.spatial import distance
 
 def create_even_scribbles(ground_truth, max_perc=0.2, margin=0.75, rel_scribble_len=False, mode="all", print_steps=False, scribble_width=1):
     '''Generate the scribble annotation for the ground truth using an even distribution of pixels among the chosen scribble types (all, both skeletons or individual skeletons and lines).
-    This function uses a scribble_width of 1, a formula to determine the square size and a range for pixels inside a square or line of half to double one square side length.
+    This function uses a default scribble_width of 1, a formula to determine the square size and a range for pixels inside a square or line of half to double one square side length.
     These parameters should be suited for max_perc values between approximately 0.05 and 1.
     Input:
         ground_truth (numpy array): the fully annotated image
