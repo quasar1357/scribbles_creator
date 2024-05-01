@@ -8,6 +8,7 @@ from scribbles_creator import create_even_scribbles
 from convpaint_helpers import selfpred_convpaint, generate_convpaint_tag
 from ilastik_helpers import selfpred_ilastik
 from dino_helpers import selfpred_dino
+from image_analysis_helpers import single_img_stats
 
 
 
@@ -257,7 +258,7 @@ def analyse_food_single_file(ground_truth, folder_path, img_num, mode="all", bin
     min_class_pix_labelled = np.min(class_pix_labelled)
     pix_in_img = (labels.shape[0] * labels.shape[1])
     perc_labelled = pix_labelled / pix_in_img * 100
-    acc = np.mean(ground_truth == prediction)
+    acc, mPrec, mRecall, mIoU, mF1 = single_img_stats(prediction, ground_truth)
 
     if show_res:
         # Show the image, ground truth and the scribble annotation
@@ -282,7 +283,12 @@ def analyse_food_single_file(ground_truth, folder_path, img_num, mode="all", bin
                         'pix_in_img': pix_in_img,
                         'perc. labelled': perc_labelled,
                         'accuracy': acc,
+                        'mPrecision': mPrec,
+                        'mRecall': mRecall,
+                        'mIoU': mIoU,
+                        'mF1': mF1,
                         'scribbles': scribbles_path,
                         'prediction': pred_path}, index=[0])
     
     return res
+

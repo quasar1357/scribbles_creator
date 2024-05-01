@@ -9,6 +9,7 @@ from convpaint_helpers import selfpred_convpaint, generate_convpaint_tag
 from ilastik_helpers import selfpred_ilastik
 from dino_helpers import selfpred_dino
 from napari_convpaint.conv_paint_utils import compute_image_stats, normalize_image
+from image_analysis_helpers import single_img_stats
 
 
 
@@ -306,7 +307,7 @@ def analyse_cellpose_single_file(folder_path, img_num, mode="all", bin=0.1, suff
     class_2_pix_labelled = np.sum(labels == 2)
     pix_in_img = (labels.shape[0] * labels.shape[1])
     perc_labelled = pix_labelled / pix_in_img * 100
-    acc = np.mean(ground_truth == prediction)
+    acc, mPrec, mRecall, mIoU, mF1 = single_img_stats(prediction, ground_truth)
 
     if show_res:
         image = img_data["img"]
@@ -330,6 +331,10 @@ def analyse_cellpose_single_file(folder_path, img_num, mode="all", bin=0.1, suff
                         'pix_in_img': pix_in_img,
                         'perc. labelled': perc_labelled,
                         'accuracy': acc,
+                        'mPrecision': mPrec,
+                        'mRecall': mRecall,
+                        'mIoU': mIoU,
+                        'mF1': mF1,
                         'image': image_path,
                         'ground truth': ground_truth_path,
                         'scribbles': scribbles_path,
