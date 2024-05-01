@@ -92,7 +92,7 @@ def bin_for_file(bin):
 
 
 
-def create_food_scribble(ground_truth, folder_path, img_num, bin=0.1, margin=0.75, sq_scaling=False, mode="all", save_res=False, suff=False, show_res=False, image=None, print_steps=False, scribble_width=1):
+def create_food_scribble(ground_truth, folder_path, img_num, bin=0.1, margin=0.75, rel_scribble_len=False, mode="all", save_res=False, suff=False, show_res=False, image=None, print_steps=False, scribble_width=1):
     '''
     Create scribbles on the given ground truth. Scribbles are created by sampling a certain percentage of the ground truth pixels and then expanding the scribbles to the given scribble width.
     The scribbles can be saved as an image and can be shown in a napari viewer if desired.
@@ -101,7 +101,7 @@ def create_food_scribble(ground_truth, folder_path, img_num, bin=0.1, margin=0.7
         folder_path (str): path to the folder for saving the scribbles
         img_num (int): number of the image to be processed
         bin (float): percentage of the ground truth pixels to be sampled for the scribbles; the scribbles will hold close to and not more than this percentage of the image pixels
-        sq_scaling (int/bool): if int, the squares for sampling scribbles from the skeletonized ground truth will be this scale compared to the image size; if False, default scaling applies
+        rel_scribble_len (int/bool): length of the single scribbles relative to pixel dimensions, i.e. the number of scribbles that would fit the image (empirical default value: 20/(max_perc**0.25))
         mode (str): scribble mode; "prim_sk" for scribbles from the skeletonized ground truth, "sek_sk" from the secondary skeleton, "lines" for lines from the skeleton to the edge, "both_sk" and "all" for combinations
         save_res (bool): if True, the scribbles will be saved as an image
         suff (str): suffix to be added to the scribbles file name
@@ -115,7 +115,7 @@ def create_food_scribble(ground_truth, folder_path, img_num, bin=0.1, margin=0.7
     NOTE: Set the random seed by calling np.random.seed(seed) before calling this function if you want to reproduce the scribbles
     '''
     # Create the scribbles
-    scribbles = create_even_scribbles(ground_truth, max_perc=bin, margin=margin, sq_scaling=sq_scaling, mode=mode, print_steps=print_steps, scribble_width=scribble_width)
+    scribbles = create_even_scribbles(ground_truth, max_perc=bin, margin=margin, rel_scribble_len=rel_scribble_len, mode=mode, print_steps=print_steps, scribble_width=scribble_width)
     perc_labelled = np.sum(scribbles>0) / (scribbles.shape[0] * scribbles.shape[1]) * 100
 
     if save_res:

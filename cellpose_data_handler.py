@@ -147,7 +147,7 @@ def create_cellpose_gt(folder_path, img_num, save_res=True, show_res=False):
 
 
 
-def create_cellpose_scribble(folder_path, img_num, bin=0.1, margin=0.75, sq_scaling=False, mode="all", save_res=False, suff=False, show_res=False, show_img=True, print_steps=False, scribble_width=1):
+def create_cellpose_scribble(folder_path, img_num, bin=0.1, margin=0.75, rel_scribble_len=False, mode="all", save_res=False, suff=False, show_res=False, show_img=True, print_steps=False, scribble_width=1):
     '''
     Load the ground truth and create scribbles for the given image. Scribbles are created by sampling a certain percentage of the ground truth pixels and then expanding the scribbles to the given scribble width.
     The scribbles can be saved as an image and can be shown in a napari viewer if desired.
@@ -155,8 +155,7 @@ def create_cellpose_scribble(folder_path, img_num, bin=0.1, margin=0.75, sq_scal
         folder_path (str): path to the folder containing the image and the ground truth, and for saving the scribbles
         img_num (int): number of the image to be processed
         bin (float): percentage of the ground truth pixels to be sampled for the scribbles; the scribbles will hold close to and not more than this percentage of the image pixels
-        sq_scaling (int/bool): if int, the squares for sampling scribbles from the skeletonized ground truth will be this scale compared to the image size; if False, default scaling applies
-        mode (str): scribble mode; "prim_sk" for scribbles from the skeletonized ground truth, "sek_sk" from the secondary skeleton, "lines" for lines from the skeleton to the edge, "both_sk" and "all" for combinations
+        rel_scribble_len (int/bool): length of the single scribbles relative to pixel dimensions, i.e. the number of scribbles that would fit the image (empirical default value: 20/(max_perc**0.25))        mode (str): scribble mode; "prim_sk" for scribbles from the skeletonized ground truth, "sek_sk" from the secondary skeleton, "lines" for lines from the skeleton to the edge, "both_sk" and "all" for combinations
         save_res (bool): if True, the scribbles will be saved as an image
         suff (str): suffix to be added to the scribbles file name
         show_res (bool): if True, the scribbles will be shown in a napari viewer
@@ -174,7 +173,7 @@ def create_cellpose_scribble(folder_path, img_num, bin=0.1, margin=0.75, sq_scal
     img_data = get_cellpose_img_data(folder_path, img_num, load_img=show_img, load_gt=True, mode=mode, bin=bin, suff=suff)
     ground_truth = img_data["gt"]
     # Create the scribbles
-    scribbles = create_even_scribbles(ground_truth, max_perc=bin, margin=margin, sq_scaling=sq_scaling, mode=mode, print_steps=print_steps, scribble_width=scribble_width)
+    scribbles = create_even_scribbles(ground_truth, max_perc=bin, margin=margin, rel_scribble_len=rel_scribble_len, mode=mode, print_steps=print_steps, scribble_width=scribble_width)
     perc_labelled = np.sum(scribbles>0) / (scribbles.shape[0] * scribbles.shape[1]) * 100
 
     if save_res:

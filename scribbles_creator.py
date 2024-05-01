@@ -3,7 +3,7 @@ from skimage.morphology import *
 from skimage.draw import line
 from scipy.spatial import distance
 
-def create_even_scribbles(ground_truth, max_perc=0.2, margin=0.75, sq_scaling=False, mode="all", print_steps=False, scribble_width=1):
+def create_even_scribbles(ground_truth, max_perc=0.2, margin=0.75, rel_scribble_len=False, mode="all", print_steps=False, scribble_width=1):
     '''Generate the scribble annotation for the ground truth using an even distribution of pixels among the chosen scribble types (all, both skeletons or individual skeletons and lines).
     This function uses a scribble_width of 1, a formula to determine the square size and a range for pixels inside a square or line of half to double one square side length.
     These parameters should be suited for max_perc values between approximately 0.05 and 1.
@@ -11,22 +11,21 @@ def create_even_scribbles(ground_truth, max_perc=0.2, margin=0.75, sq_scaling=Fa
         ground_truth (numpy array): the fully annotated image
         max_perc (float): the maximum percentage of pixels that should be picked (from skeletons and lines)
         margin (float): the margin for minimum nr. pixels that should be picked, as a proportion of the pixels given by max_perc (default: 0.75)
-        sq_scaling (int): the scaling factor for the square size (side length), i.e. the number of squares that would fit the image (default: 400/(max_perc**0.5))
-        mode (str): the scribble types to use (lines, prim_sk, sec_sk, both_sk, all)
+        rel_scribble_len (int/bool): length of the single scribbles relative to pixel dimensions, i.e. the number of scribbles that would fit the image (empirical default value: 20/(max_perc**0.25))        mode (str): the scribble types to use (lines, prim_sk, sec_sk, both_sk, all)
         print_steps (bool): whether to print the steps of the scribble creation
         scribble_width (int): the width of the scribble lines; IMPORTANT: the width is created through downstream dilation which alters the percentage...
     Output:
-        scribble (numpy array): the scribble annotation
+        scribbles (numpy array): the scribble annotation
     '''    
     # Calculate parameters for the scribble annotation
     num_annots = {"lines": 1, "prim_sk": 1, "sec_sk": 1, "both_sk" : 2, "all": 3}[mode]
     max_perc_per_type = max_perc / num_annots
-    if not sq_scaling: sq_scaling = 400/(max_perc**0.5)
-    sq_size = (ground_truth.shape[0] * ground_truth.shape[1] // sq_scaling) ** 0.5
+    if not rel_scribble_len: rel_scribble_len = 20/(max_perc**0.25)
+    sq_size = (ground_truth.shape[0] * ground_truth.shape[1] // rel_scribble_len**2) ** 0.5
     sq_size = int(sq_size)
 
     # Generate the scribble annotation for the ground truth
-    scribble = create_scribble(ground_truth, scribble_width=scribble_width, sk_max_perc=max_perc_per_type, sk_margin=margin, sq_size=sq_size, sq_pix_range=False, lines_max_perc=max_perc_per_type, lines_margin=margin, line_pix_range=False, mode=mode, print_steps=print_steps)
+    scribbles = create_scribble(ground_truth, scribble_width=scribble_width, sk_max_perc=max_perc_per_type, sk_margin=margin, sq_size=sq_size, sq_pix_range=False, lines_max_perc=max_perc_per_type, lines_margin=margin, line_pix_range=False, mode=mode, print_steps=print_steps)
 
     # Handle edge cases where too many pixels were picked
     # (Should only happen if the total maximum is <3 and the minimum of one pixel was picked per scribble type, even though this pushed the total percentage above the maximum)
@@ -45,17 +44,17 @@ def create_even_scribbles(ground_truth, max_perc=0.2, margin=0.75, sq_scaling=Fa
                 print(f"WARNING: The theoretical maximum number of pixels for the entire class {class_val} ({max_pix:.2f}) is below 1. Instead, 1 pixel is picked.")
                 max_pix = 1
             # If too many pixels are present in this class in the scribble, raise a warning and pick the requested number of pixels
-            scribble_class_mask = scribble == class_val
+            scribble_class_mask = scribbles == class_val
             num_pix_in_scribble = np.sum(scribble_class_mask)
             # Note that when inflating the scribble width, the number of pixels will increase, so the maximum percentage no longer has to be guaranteed
             if num_pix_in_scribble > max_pix and scribble_width == 1:
                 print(f"WARNING: The total number of pixels for class {class_val} ({num_pix_in_scribble}) exceeds the maximum ({max_pix:.2f}). Removing pixels...")
                 scribble_class_coord = np.where(scribble_class_mask)
-                scribble[scribble_class_coord[0][max_pix:], scribble_class_coord[1][max_pix:]]
-                new_num_pix_in_scribble = np.sum(scribble == class_val)
+                scribbles[scribble_class_coord[0][max_pix:], scribble_class_coord[1][max_pix:]]
+                new_num_pix_in_scribble = np.sum(scribbles == class_val)
                 print(f"   New total number of pixels for the class: {new_num_pix_in_scribble} ({new_num_pix_in_scribble/tot_class_pix*100:.4f}%)")
 
-    return scribble
+    return scribbles
 
 def create_scribble(ground_truth, scribble_width=1, sk_max_perc=0.05, sk_margin=0.75, sq_size=20, sq_pix_range=False, lines_max_perc=0.05, lines_margin=0.75, line_pix_range=False, mode="all", print_steps=False):
     '''
