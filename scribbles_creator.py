@@ -13,7 +13,7 @@ def create_even_scribbles(ground_truth, max_perc=0.2, margin=0.75, rel_scribble_
         margin (float): the margin for minimum nr. pixels that should be picked, as a proportion of the pixels given by max_perc (default: 0.75)
         rel_scribble_len (int/bool): length of the single scribbles relative to pixel dimensions, i.e. the number of scribbles that would fit the image (empirical default value: 20/(max_perc**0.25))        mode (str): the scribble types to use (lines, prim_sk, sec_sk, both_sk, all)
         print_steps (bool): whether to print the steps of the scribble creation
-        scribble_width (int): the width of the scribble lines; IMPORTANT: the width is created through downstream dilation which alters the percentage...
+        scribble_width (int): the width of the scribble lines
     Output:
         scribbles (numpy array): the scribble annotation
     '''    
@@ -39,20 +39,20 @@ def create_even_scribbles(ground_truth, max_perc=0.2, margin=0.75, rel_scribble_
             gt_class_mask = (ground_truth == class_val)
             tot_class_pix = int(np.sum(gt_class_mask))
             max_pix = int(tot_class_pix * max_perc / 100)
-            # If the maximum number of pixels is below 1, raise a warning and pick 1 pixel instead (avoiding empty scribble annotations)
-            if max_pix < 1:
-                print(f"WARNING: The theoretical maximum number of pixels for the entire class {class_val} ({max_pix:.2f}) is below 1. Instead, 1 pixel is picked.")
-                max_pix = 1
+            # If the maximum number of pixels is below 1 square of scribble width, raise a warning and pick 1 square of scribble width pixels instead (avoiding empty scribble annotations)
+            if max_pix < scribble_width**2:
+                print(f"WARNING: The theoretical maximum number of pixels for the entire class {class_val} ({max_pix:.2f}) is below a square of scribble width ({scribble_width**2}). Instead, {scribble_width**2} pixel(s) is/are picked.")
+                max_pix = scribble_width**2
             # If too many pixels are present in this class in the scribble, raise a warning and pick the requested number of pixels
             scribble_class_mask = scribbles == class_val
             num_pix_in_scribble = np.sum(scribble_class_mask)
-            # Note that when inflating the scribble width, the number of pixels will increase, so the maximum percentage no longer has to be guaranteed
-            if num_pix_in_scribble > max_pix and scribble_width == 1:
+            # Remove pixels if the total number of pixels exceeds the maximum
+            if num_pix_in_scribble > max_pix:
                 print(f"WARNING: The total number of pixels for class {class_val} ({num_pix_in_scribble}) exceeds the maximum ({max_pix:.2f}). Removing pixels...")
                 scribble_class_coord = np.where(scribble_class_mask)
-                scribbles[scribble_class_coord[0][max_pix:], scribble_class_coord[1][max_pix:]]
+                scribbles[scribble_class_coord[0][max_pix:], scribble_class_coord[1][max_pix:]] = 0
                 new_num_pix_in_scribble = np.sum(scribbles == class_val)
-                print(f"   New total number of pixels for the class: {new_num_pix_in_scribble} ({new_num_pix_in_scribble/tot_class_pix*100:.4f}%)")
+                print(f"New total number of pixels for the class: {new_num_pix_in_scribble} ({new_num_pix_in_scribble/tot_class_pix*100:.4f}%)")
 
     return scribbles
 
@@ -61,7 +61,7 @@ def create_scribble(ground_truth, scribble_width=1, sk_max_perc=0.05, sk_margin=
     Generate the scribble annotation for the ground truth.
     Input:
         ground_truth (numpy array): the fully annotated image
-        scribble_width (int): the width of the scribble lines; IMPORTANT: the width is created through dilation which alters the percentage...
+        scribble_width (int): the width of the scribble lines
         sk_max_perc (float): the maximum percentage of pixels of the ground truth that should be picked (from each of the skeletons)
         sk_margin (float): for the skeletons - the margin for minimum nr. pixels that should be picked, as a proportion of the pixels given by max_perc (default: 0.75)
         sq_size (int): the size of the squares (side length)
@@ -94,7 +94,7 @@ def scribble_class(gt, class_val, scribble_width=1, sk_max_perc=0.05, sk_margin=
     Input:
         gt (numpy array): the ground truth
         class_val (int): the value of the class
-        scribble_width (int): the width of the scribble lines (NOTE: the width is created through dilation which alters the percentage...)
+        scribble_width (int): the width of the scribble lines
         sk_max_perc (float): the maximum percentage of pixels of the ground truth that should be picked (from skeletons)
         sk_margin (float): for the skeleton - the margin for minimum nr. pixels that should be picked, as a proportion of the pixels given by max_perc (default: 0.75)
         sq_size (int): the size of the squares (side length)
@@ -124,27 +124,32 @@ def scribble_class(gt, class_val, scribble_width=1, sk_max_perc=0.05, sk_margin=
     if mode in ("prim_sk", "sec_sk", "both_sk", "all"):
         # Calculate how many pixels of each skeleton are allowed in this class given the percentage
         sk_max_pix = tot_class_pix * sk_max_perc / 100
-        # Ensure that the maximum number of pixels is at least 1 (i.e. at least one pixel is picked)
-        if sk_max_pix < 1:
-            print(f"WARNING: The theoretical maximum number of pixels for the skeletons ({sk_max_pix:.2f}) is below 1 for class {class_val}. Instead, 1 pixel will be picked.")
-            sk_max_pix = 1
+        # Ensure that the maximum number of pixels is at least a square of scribble_width (i.e. at least one dilated pixel is picked)
+        if sk_max_pix < scribble_width**2:
+            print(f"   WARNING: The theoretical maximum number of pixels for the entire class {class_val} ({sk_max_pix:.2f}) is below a square of scribble width ({scribble_width**2}). Instead, {scribble_width**2} pixel(s) is/are picked.")
+            sk_max_pix = scribble_width**2
+        sq_pix_max = sq_size*2
         # Make sure that the minimum to pick is not above the total maximum allowed
-        sk_pix_min = min(sq_size//2, int(sk_max_pix))
+        sq_pix_min = min(sq_size//2, int(sk_max_pix))
         # Make sure the minumim cannot be 0
-        sk_pix_min = max(1, sk_pix_min)        
-        sq_pix_range = (sk_pix_min, sq_size*2) if not sq_pix_range else sq_pix_range
+        sq_pix_min = max(1, sq_pix_min)
+        # Adjust the range to scribble_width (if the scribble is wider, the range need to be higher to have similar lengths of the scribbles)
+        sq_pix_min, sq_pix_max = int(sq_pix_min * scribble_width), int(sq_pix_max * scribble_width)
+        sq_pix_range = (sq_pix_min, sq_pix_max) if not sq_pix_range else sq_pix_range
         if print_steps:
-            print(f"sk_max_pix: {sk_max_pix:.2f}, sq_size: {sq_size}, sk_pix_range: {sq_pix_range}")
+            print(f"   sk_max_pix: {sk_max_pix:.2f}, sq_size: {sq_size}, sq_pix_range: {sq_pix_range}")
         # If the primary skeleton is needed, pick squares of it
         if mode in ("prim_sk", "both_sk", "all"):
-            prim_sk_squares = pick_sk_squares_optim(prim_sk, sk_max_pix=sk_max_pix, sk_margin=sk_margin, sq_size=sq_size, sq_pix_range=sq_pix_range, print_steps=print_steps)
+            prim_sk_dilated = dilation(prim_sk, square(scribble_width))
+            prim_sk_squares = pick_sk_squares_optim(prim_sk_dilated, sk_max_pix=sk_max_pix, sk_margin=sk_margin, sq_size=sq_size, sq_pix_range=sq_pix_range, print_steps=print_steps)
             if print_steps:
-                print(f"   prim_sk_squares pix: {np.sum(prim_sk_squares)} = {np.sum(prim_sk_squares)/np.sum(gt_class_mask)*100:.2f}%")    
+                print(f"      prim_sk_squares pix: {np.sum(prim_sk_squares)} = {np.sum(prim_sk_squares)/np.sum(gt_class_mask)*100:.2f}%")
         # If the secondary skeleton is needed, pick squares of it
         if mode in ("sec_sk", "both_sk", "all"):
-            sec_sk_squares = pick_sk_squares_optim(sec_sk, sk_max_pix=sk_max_pix, sk_margin=sk_margin, sq_size=sq_size, sq_pix_range=sq_pix_range, print_steps=print_steps)
+            sec_sk_dilated = dilation(sec_sk, square(scribble_width))
+            sec_sk_squares = pick_sk_squares_optim(sec_sk_dilated, sk_max_pix=sk_max_pix, sk_margin=sk_margin, sq_size=sq_size, sq_pix_range=sq_pix_range, print_steps=print_steps)
             if print_steps:
-                print(f"   sec_sk_squares pix: {np.sum(sec_sk_squares)} = {np.sum(sec_sk_squares)/np.sum(gt_class_mask)*100:.2f}%")
+                print(f"      sec_sk_squares pix: {np.sum(sec_sk_squares)} = {np.sum(sec_sk_squares)/np.sum(gt_class_mask)*100:.2f}%")
         # If both skeletons are needed, combine the squares of both skeletons
         if mode in ("both_sk", "all"):
             both_sk_squares = np.logical_or(prim_sk_squares, sec_sk_squares)
@@ -154,17 +159,21 @@ def scribble_class(gt, class_val, scribble_width=1, sk_max_perc=0.05, sk_margin=
     if mode in ("lines", "all"):
         # Calculate how many pixels of lines are allowed in this class given the percentage
         lines_max_pix = tot_class_pix * lines_max_perc / 100
-        # Ensure that the maximum number of pixels is at least 1 (i.e. at least one pixel is picked)
-        if lines_max_pix < 1:
-            print(f"WARNING: The theoretical maximum number of pixels for the lines ({lines_max_pix:.2f}) is below 1 for class {class_val}. Instead, 1 pixel will be picked.")
-            lines_max_pix = 1
+        # Ensure that the maximum number of pixels is at least a square of scribble_width (i.e. at least one dilated pixel is picked)
+        if lines_max_pix < scribble_width**2:
+            print(f"   WARNING: The theoretical maximum number of pixels for the lines ({lines_max_pix:.2f}) is below a square of scribble width ({scribble_width**2}). Instead, {scribble_width**2} pixel(s) is/are picked.")
+            lines_max_pix = scribble_width**2
+        line_pix_max = sq_size*2
         # Ensure that the line is allowed to be as short as the maximum total pixels in all lines
-        line_pix_range = (min(sq_size//2, int(lines_max_pix)), sq_size*2) if not line_pix_range else line_pix_range
+        line_pix_min = min(sq_size//2, int(lines_max_pix))
+        # Adjust the range to scribble_width (if the scribble is wider, the range need to be higher to have similar lengths of the scribbles)
+        line_pix_min, line_pix_max = int(line_pix_min * scribble_width), int(line_pix_max * scribble_width)        
+        line_pix_range = (line_pix_min, line_pix_max) if not line_pix_range else line_pix_range
         if print_steps:
-            print(f"lines_max_pix: {lines_max_pix:.2f}, line_pix_range: {line_pix_range}")
-        lines = create_lines_optim(prim_sk, gt_class_mask, lines_max_pix, lines_margin, line_pix_range, print_steps=print_steps)
+            print(f"   lines_max_pix: {lines_max_pix:.2f}, line_pix_range: {line_pix_range}")
+        lines = create_lines_optim(prim_sk, gt_class_mask, lines_max_pix, lines_margin, line_pix_range, scribble_width, print_steps=print_steps)
         if print_steps:
-            print(f"   lines pix: {np.sum(lines)} = {np.sum(lines)/np.sum(gt_class_mask)*100:.2f}%")
+            print(f"      lines pix: {np.sum(lines)} = {np.sum(lines)/np.sum(gt_class_mask)*100:.2f}%")
     if mode =="all":
         lines_and_squares = np.logical_or(lines, both_sk_squares)
 
@@ -175,15 +184,18 @@ def scribble_class(gt, class_val, scribble_width=1, sk_max_perc=0.05, sk_margin=
     elif mode == "both_sk": class_scribble_mask = both_sk_squares
     elif mode == "all": class_scribble_mask = lines_and_squares
 
-    # Print the total picked pixels
-    if print_steps:
-        print(f"TOTAL pix: {np.sum(class_scribble_mask)} = {np.sum(class_scribble_mask)/np.sum(gt_class_mask)*100:.2f}%")    
-
-    # Dilate the scribble to make them wider; NOTE: this dilation will alter the percentage!!!
-    class_scribble_mask = dilation(class_scribble_mask, square(scribble_width))
+    # Dilate the scribble to make them wider; NOTE: this dilation would alter the percentage!!!
+    # class_scribble_mask = dilation(class_scribble_mask, square(scribble_width))
     
     # Ensure that the scribble is within the ground truth mask
+    before = np.sum(class_scribble_mask)
     class_scribble_mask = np.logical_and(class_scribble_mask, gt_class_mask)
+    after = np.sum(class_scribble_mask)
+    # Print the total picked pixels
+    if print_steps:
+        print(f"   all types: {before} = {before/np.sum(gt_class_mask)*100:.2f}%")
+        print(f"      {before - after} pixel(s) removed from the scribble because they were outside the ground truth mask (probably due to dilation to scribble width).")
+        print(f"   TOTAL pix: {after} = {after/np.sum(gt_class_mask)*100:.2f}%")
     # Use the mask to add the class values to the scribble
     class_scribble = class_scribble_mask * class_val
     return class_scribble
@@ -215,7 +227,7 @@ def double_sk_class(gt_mask, closing_prim=0, closing_sec=0):
 
     return prim_sk, sec_sk
 
-def pick_sk_squares(sk, sk_max_pix=20, sq_size=20, sq_pix_range=(10, 40)):
+def pick_sk_squares(sk, sk_max_pix=20, sq_size=20, sq_pix_range=(10, 40), print_details=False):
     '''
     Pick random squares from the skeleton.
     Input:
@@ -236,6 +248,8 @@ def pick_sk_squares(sk, sk_max_pix=20, sq_size=20, sq_pix_range=(10, 40)):
     idx = 0
     idx_step = 1
     overshoots = 0
+    if print_details:
+        print("--- Sampling squares: pix_in_sk", pix_in_sk, "indx_step", idx_step)
     # Loop until the total number of pixels in all squares approaches the threshold or the end of all pixels in the skeleton is reached
     while overshoots < 100 and idx < pix_in_sk:
         # Pick a random square from the skeleton
@@ -243,20 +257,37 @@ def pick_sk_squares(sk, sk_max_pix=20, sq_size=20, sq_pix_range=(10, 40)):
         idx += idx_step    
         square = get_square(sk, current_coordinate, sq_size)
         pix_in_sq = np.sum(square)
+        future_total = added_pix + pix_in_sq
+        if print_details:
+            print(f"---    added_pix: {added_pix}, pix_in_square: {pix_in_sq}, future_total: {future_total}")
         # If the square would push the total number of pixels in all squares above the maximum, skip it and count the overshoot
-        if added_pix + pix_in_sq > sk_max_pix:
+        if future_total > sk_max_pix:
+            if print_details:
+                print("---    overshoot nr.", overshoots)
             overshoots += 1
             continue
         # If there are too few or too many pixels in the square, skip it
         elif pix_in_sq < sq_pix_range[0] or pix_in_sq > sq_pix_range[1]:
+            if print_details:
+                print("---    outside sq_pix_range", sq_pix_range)
             continue
         # If the square is valid, add it to the mask of all lines
         else:
             all_squares = np.logical_or(all_squares, square)
             added_pix = np.sum(all_squares)
+        if added_pix == int(sk_max_pix):
+            if print_details:
+                print("---    sk_max_pix reached (no improvement possible)")
+            break
+        if sk_max_pix - added_pix < sq_pix_range[0]:
+            if print_details:
+                print("---    the remaining total pixels are too few for a square")
+            break
+    if print_details:
+        print("--- Done sampling squares")
     return all_squares
 
-def pick_sk_squares_optim(sk, sk_max_pix=20, sk_margin=0.75, sq_size=20, sq_pix_range=(10, 40), print_steps=False):
+def pick_sk_squares_optim(sk, sk_max_pix=20, sk_margin=0.75, sq_size=20, sq_pix_range=(10,40), print_steps=False):
     '''
     Pick random squares from the skeleton. Use the base function and adjust the parameters if no squares were added.
     Input:
@@ -271,7 +302,7 @@ def pick_sk_squares_optim(sk, sk_max_pix=20, sk_margin=0.75, sq_size=20, sq_pix_
     squares = pick_sk_squares(sk, sk_max_pix, sq_size, sq_pix_range)
     added_pix = np.sum(squares)
     # If not enough squares were added, try again with smaller squares and a range starting at a lower value (allowing fewer pixels in a square)
-    # NOTE: We check at least for 1 pixel, since otherwise we would allow for empty scribbles; on the other hand we take floor, to ensure it cannot be exoected to be above the allowed maximum
+    # NOTE: We check at least for 1 pixel, since otherwise we would allow for empty scribbles; on the other hand we take floor, to ensure it cannot be expected to be above the allowed maximum
     while added_pix < max(1, np.floor(sk_max_pix * sk_margin)):
         # Do not reduce the square size below 1
         if sq_size >= 2:
@@ -279,21 +310,24 @@ def pick_sk_squares_optim(sk, sk_max_pix=20, sk_margin=0.75, sq_size=20, sq_pix_
             sq_size = sq_size//2
             # Adjust the range accordingly
             # Make sure that the minimum to pick is not above the total maximum allowed
-            sk_pix_min = min(sq_size//2, int(sk_max_pix))
+            sk_pix_min = min(sq_pix_range[0]//2, int(sk_max_pix))
             # Make sure the minumim cannot be 0
             sk_pix_min = max(1, sk_pix_min)
             sq_pix_range = (sk_pix_min, sq_pix_range[1])
             if print_steps:
-                print("Adjusting square size and range to", sq_size, sq_pix_range)
+                print("   Adjusting square size and range to", sq_size, sq_pix_range)
         # If we are reaching the limit of what we can sample, break the loop and raise a warning (if at least some squares were added) or an error (if no squares were added)
         else:
             if added_pix == 0:
-                print("ERROR: No squares were added!")
+                print("   ERROR: No squares were added!")
             else:
-                print(f"WARNING: It was not possible to sample {sk_margin * 100}% of the requested pixels. Only {added_pix} pixels in squares were added!")
+                print(f"   WARNING: It was not possible to sample {sk_margin * 100}% of the requested pixels. Only {added_pix} pixels in squares were added!")
             break
-        # Create new squares with the adjusted parameters and try a gain; add them to the squares
-        new_squares = pick_sk_squares(sk, sk_max_pix, sq_size, sq_pix_range)
+        # Create new squares with the adjusted parameters and try again; add them to the squares
+        sk_max_pix_left = sk_max_pix - added_pix
+        if print_steps:
+            print("   sk_max_pix_left:", sk_max_pix_left)
+        new_squares = pick_sk_squares(sk, sk_max_pix_left, sq_size, sq_pix_range)
         squares = np.logical_or(squares, new_squares)
         added_pix = np.sum(squares)
     return squares
@@ -317,7 +351,7 @@ def get_square(mask, coord, sq_size=20):
     square_mask[coord[0]-red:coord[0]+inc, coord[1]-red:coord[1]+inc] = mask[coord[0]-red:coord[0]+inc, coord[1]-red:coord[1]+inc]
     return square_mask
 
-def create_lines(sk, gt_mask, lines_max_pix=20, line_pix_range=(10, 40), line_crop=2, print_details=False):
+def create_lines(sk, gt_mask, lines_max_pix=20, line_pix_range=(10, 40), scribble_width=1, line_crop=2, print_details=False):
     '''
     Create lines leading from a skeleton to the edge of the mask.
     Input:
@@ -347,17 +381,15 @@ def create_lines(sk, gt_mask, lines_max_pix=20, line_pix_range=(10, 40), line_cr
         # Draw a line from the skeleton to the edge of the mask
         current_coordinate = sk_coordinates[idx]
         idx += idx_step
-        line = get_line(current_coordinate, gt_mask, line_crop=line_crop)
+        single_pix_line = get_line(current_coordinate, gt_mask, line_crop=line_crop)
+        line = dilation(single_pix_line, square(scribble_width))
         pix_in_line = np.sum(line)
-        tried_lines.append(line)
+        future_total = added_pix + pix_in_line
+        tried_lines.append(single_pix_line)
         if print_details:
-            print("---    pix_in_line", pix_in_line, "added_pix", added_pix)
-        if added_pix == lines_max_pix:
-            if print_details:
-                print("---    lines_max_pix reached (no improvement possible)")
-            break
+            print(f"---    added_pix: {added_pix}, pix_in_line: {pix_in_line}, future_total: {future_total}")
         # If the line would push the total number of pixels on lines above the maximum, skip it and count the overshoot
-        if added_pix + pix_in_line > lines_max_pix:
+        if future_total > lines_max_pix:
             if print_details:
                 print("---    overshoot nr.", overshoots)
             overshoots += 1
@@ -372,12 +404,20 @@ def create_lines(sk, gt_mask, lines_max_pix=20, line_pix_range=(10, 40), line_cr
             # Add the line to the mask of all lines
             all_lines = np.logical_or(all_lines, line)
             added_pix = np.sum(all_lines)
+        if added_pix == int(lines_max_pix):
+            if print_details:
+                print("---    lines_max_pix reached (no improvement possible)")
+            break
+        if lines_max_pix - added_pix < line_pix_range[0]:
+            if print_details:
+                print("---    the remaining total pixels are too few for a line")
+            break
     if print_details:
         avg_length_tried = get_lines_stats(tried_lines)
         print("--- Done sampling lines: avg_length_tried", avg_length_tried)
     return all_lines, tried_lines
 
-def create_lines_optim(sk, gt_mask, lines_max_pix=20, lines_margin=0.75, line_pix_range=(10, 40), line_crop=2, print_steps=False):
+def create_lines_optim(sk, gt_mask, lines_max_pix=20, lines_margin=0.75, line_pix_range=(10, 40), scribble_width=1, init_line_crop=2, print_steps=False):
     '''
     Create lines leading from a skeleton to the edge of the mask. Use the base function and adjust the parameters if no lines were added.
     Input:
@@ -386,14 +426,14 @@ def create_lines_optim(sk, gt_mask, lines_max_pix=20, lines_margin=0.75, line_pi
         lines_max_pix (int): the maximum number of pixels that should be picked with all lines
         lines_margin (float): the margin for minimum nr. pixels that should be picked, as a proportion of the pixels given by max_perc (default: 0.75)
         line_pix_range (int): the range that the number of pixels for a single line shall be in
-        line_crop (int): the crop of the line (on both sides; i.e. distance to edge and and skeleton will each be half of the crop)
+        init_line_crop (int): the crop of the line to start with (on both sides; i.e. distance to edge and and skeleton will each be half of the crop), may be changed during optimization
     Output:
         lines (numpy array): the mask of all lines
     '''
-    lines, tried_lines = create_lines(sk, gt_mask, lines_max_pix, line_pix_range, line_crop)
+    line_crop = init_line_crop
+    lines, tried_lines = create_lines(sk, gt_mask, lines_max_pix, line_pix_range, scribble_width, line_crop)
     avg_length_tried = get_lines_stats(tried_lines)
     added_pix = np.sum(lines)
-    line_crop = 0
     # If not enough lines were added, try again with adjusted parameters
     # NOTE: We check at least for 1 pixel, since otherwise we would allow for empty scribbles; on the other hand we take floor, to ensure it cannot be expected to be above the allowed maximum
     while added_pix < max(1, np.floor(lines_max_pix * lines_margin)):
@@ -403,7 +443,7 @@ def create_lines_optim(sk, gt_mask, lines_max_pix=20, lines_margin=0.75, line_pi
         if line_pix_range[0] > 1: # or line_pix_range[1] > max(gt_mask.shape) // 2:
             line_pix_range = (line_pix_range[0]//2, line_pix_range[1] * 2)
             if print_steps:
-                print("Adjusting line range to", line_pix_range)
+                print("   Adjusting line range to", line_pix_range)
         # If this did not work (i.e. the lines are longer than the lines_max_pix), shorten the lines by increasing the lines crop
         elif line_crop < max(gt_mask.shape) / 2:
             # If the average length of the lines tried in the last run is still far from the lines_max_pix, increase the lines crop
@@ -416,16 +456,19 @@ def create_lines_optim(sk, gt_mask, lines_max_pix=20, lines_margin=0.75, line_pi
                 # print(f"avg_length_tried ({avg_length_tried:.2f}) < 5x lines_max_pix ({lines_max_pix:.2f}) --> crop_increase = {crop_increase}")
             line_crop = line_crop + crop_increase
             if print_steps:
-                print("Adjusting line_crop to", line_crop)
+                print("   Adjusting line_crop to", line_crop)
         # If we are reaching the limit of what we can sample, break the loop and raise a warning (if at least some lines were added) or an error (if no lines were added)
         else:
             if added_pix == 0:
-                print("ERROR: No lines were added!")
+                print("   ERROR: No lines were added!")
             else:
-                print(f"WARNING:  It was not possible to sample {lines_margin * 100}% of the requested pixels. Only {added_pix} pixels in lines were added!")
+                print(f"   WARNING: It was not possible to sample {lines_margin * 100}% of the requested pixels. Only {added_pix} pixels in lines were added!")
             break
         # Create new lines with the adjusted parameters and try a gain; add them to the lines
-        new_lines, tried_lines = create_lines(sk, gt_mask, lines_max_pix, line_pix_range, line_crop=line_crop)
+        lines_max_pix_left = lines_max_pix - added_pix
+        if print_steps:
+            print("   lines_max_pix_left:", lines_max_pix_left)
+        new_lines, tried_lines = create_lines(sk, gt_mask, lines_max_pix_left, line_pix_range, scribble_width, line_crop=line_crop)
         avg_length_tried = get_lines_stats(tried_lines)
         lines = np.logical_or(lines, new_lines)
         added_pix = np.sum(lines)
