@@ -13,7 +13,7 @@ from image_analysis_helpers import single_img_stats
 
 
 
-def get_cellpose_img_data(folder_path, img_num, load_img=False, load_gt=False, load_scribbles=False, mode="all", bin="NA", suff=False, load_pred=False, pred_tag="convpaint"):
+def get_cellpose_img_data(folder_path, img_num, load_img=False, load_gt=False, load_scribbles=False, mode="all", bin="NA", scribble_width=None, suff=False, load_pred=False, pred_tag="convpaint"):
     '''
     Create names/paths for the image, ground truth, scribbles and/or prediction for the given image number and folder path and optionally load them.
     INPUT:
@@ -51,14 +51,15 @@ def get_cellpose_img_data(folder_path, img_num, load_img=False, load_gt=False, l
         ground_truth = None
 
     suff = "" if not suff else "_" + suff
+    width_suff = "" if scribble_width is None else f"_w{scribble_width}"
 
-    scribbles_path = folder_path + img_base + f"_scribbles_{mode}_{bin_for_file(bin)}{suff}.png"
+    scribbles_path = folder_path + img_base + f"_scribbles_{mode}_{bin_for_file(bin)}{width_suff}{suff}.png"
     if load_scribbles:
         scribbles = np.array(Image.open(scribbles_path))
     else:
         scribbles = None
 
-    pred_path = folder_path + img_base + f"_{pred_tag}_{mode}_{bin_for_file(bin)}{suff}.png"
+    pred_path = folder_path + img_base + f"_{pred_tag}_{mode}_{bin_for_file(bin)}{width_suff}{suff}.png"
     if load_pred:
         pred = np.array(Image.open(pred_path))
     else:
@@ -171,7 +172,7 @@ def create_cellpose_scribble(folder_path, img_num, bin=0.1, margin=0.75, rel_scr
     # We only need to load the image if we want to show the results and it is specified that the image should be shown
     if not show_res: show_img = False
     # Load the ground truth and get the scribbles path for saving; note that if we want to show the results, we also load the image
-    img_data = get_cellpose_img_data(folder_path, img_num, load_img=show_img, load_gt=True, mode=mode, bin=bin, suff=suff)
+    img_data = get_cellpose_img_data(folder_path, img_num, load_img=show_img, load_gt=True, mode=mode, bin=bin, scribble_width=scribble_width, suff=suff)
     ground_truth = img_data["gt"]
     # Create the scribbles
     scribbles = create_even_scribbles(ground_truth, max_perc=bin, margin=margin, rel_scribble_len=rel_scribble_len, mode=mode, print_steps=print_steps, scribble_width=scribble_width)
@@ -196,7 +197,7 @@ def create_cellpose_scribble(folder_path, img_num, bin=0.1, margin=0.75, rel_scr
 
 
 
-def pred_cellpose(folder_path, img_num, pred_type="convpaint", mode="all", bin="NA", suff=False, save_res=False, show_res=False, show_gt=True, **pred_kwargs):
+def pred_cellpose(folder_path, img_num, pred_type="convpaint", mode="all", bin="NA", scribble_width=None, suff=False, save_res=False, show_res=False, show_gt=True, **pred_kwargs):
     '''
     Load the image and the scribbles and predict segmentation of the image using the given prediction method. Optionally save the prediction and show the results in a napari viewer.
     INPUT:
@@ -222,9 +223,10 @@ def pred_cellpose(folder_path, img_num, pred_type="convpaint", mode="all", bin="
     # We only need to load the image if we want to show the results and it is specified that the image should be shown
     if not show_res: show_gt = False
     # Load the image and labels
-    img_data = get_cellpose_img_data(folder_path, img_num, load_img=True, load_gt=show_gt, load_scribbles=True, mode=mode, bin=bin, suff=suff, load_pred=False, pred_tag=pred_tag)
+    img_data = get_cellpose_img_data(folder_path, img_num, load_img=True, load_gt=show_gt, load_scribbles=True, mode=mode, bin=bin, scribble_width=scribble_width, suff=suff, load_pred=False, pred_tag=pred_tag)
     image = img_data["img"]
     labels = img_data["scribbles"]
+    print(image.shape, labels.shape)
 
     # Predict the image
     pred_func = {"convpaint": selfpred_convpaint, "ilastik": selfpred_ilastik, "dino": selfpred_dino}[pred_type]
@@ -249,30 +251,30 @@ def pred_cellpose(folder_path, img_num, pred_type="convpaint", mode="all", bin="
     return prediction
 
 
-def pred_cellpose_convpaint(folder_path, img_num, mode="all", bin="NA", suff=False, save_res=False, show_res=False, show_gt=True,
+def pred_cellpose_convpaint(folder_path, img_num, mode="all", bin="NA", scribble_width=None, suff=False, save_res=False, show_res=False, show_gt=True,
                             layer_list=[0], scalings=[1,2], model="vgg16", random_state=None):
     '''Shortcut for pred_cellpose() with pred_type="convpaint" (see pred_cellpose() for details).'''
-    prediction = pred_cellpose(folder_path, img_num, pred_type="convpaint", mode=mode, bin=bin, suff=suff, save_res=save_res, show_res=show_res, show_gt=show_gt,
+    prediction = pred_cellpose(folder_path, img_num, pred_type="convpaint", mode=mode, bin=bin, scribble_width=scribble_width, suff=suff, save_res=save_res, show_res=show_res, show_gt=show_gt,
                                layer_list=layer_list, scalings=scalings, model=model, random_state=random_state)
     return prediction
 
-def pred_cellpose_ilastik(folder_path, img_num, mode="all", bin="NA", suff=False, save_res=False, show_res=False, show_gt=True,
+def pred_cellpose_ilastik(folder_path, img_num, mode="all", bin="NA", scribble_width=None, suff=False, save_res=False, show_res=False, show_gt=True,
                           random_state=None):
     '''Shortcut for pred_cellpose() with pred_type="ilastik" (see pred_cellpose() for details).'''
-    prediction = pred_cellpose(folder_path, img_num, pred_type="ilastik", mode=mode, bin=bin, suff=suff, save_res=save_res, show_res=show_res, show_gt=show_gt,
+    prediction = pred_cellpose(folder_path, img_num, pred_type="ilastik", mode=mode, bin=bin, scribble_width=scribble_width, suff=suff, save_res=save_res, show_res=show_res, show_gt=show_gt,
                                random_state=random_state)
     return prediction
 
-def pred_cellpose_dino(folder_path, img_num, mode="all", bin="NA", suff=False, save_res=False, show_res=False, show_gt=True,
+def pred_cellpose_dino(folder_path, img_num, mode="all", bin="NA", scribble_width=None, suff=False, save_res=False, show_res=False, show_gt=True,
                        dinov2_model='s', dinov2_layers=(), dinov2_scales=(), upscale_order=1, random_state=None):
     '''Shortcut for pred_cellpose() with pred_type="dino" (see pred_cellpose() for details).'''
-    prediction = pred_cellpose(folder_path, img_num, pred_type="dino", mode=mode, bin=bin, suff=suff, save_res=save_res, show_res=show_res, show_gt=show_gt,
+    prediction = pred_cellpose(folder_path, img_num, pred_type="dino", mode=mode, bin=bin, scribble_width=scribble_width, suff=suff, save_res=save_res, show_res=show_res, show_gt=show_gt,
                                dinov2_model=dinov2_model, dinov2_layers=dinov2_layers, dinov2_scales=dinov2_scales, upscale_order=upscale_order, random_state=random_state)
     return prediction
 
 
 
-def analyse_cellpose_single_file(folder_path, img_num, mode="all", bin=0.1, suff=False, pred_tag="convpaint", show_res=False):
+def analyse_cellpose_single_file(folder_path, img_num, mode="all", bin=0.1, scribble_width=None, suff=False, pred_tag="convpaint", show_res=False):
     ''' 
     Load and nalyse the scribbles and the prediction for a single image. Optionally show the results in a napari viewer.
     INPUT:
@@ -289,7 +291,7 @@ def analyse_cellpose_single_file(folder_path, img_num, mode="all", bin=0.1, suff
                     "pix_labelled", "class_1_pix_labelled", "class_2_pix_labelled", "pix_in_img", "perc. labelled", "accuracy",
                     "image", "ground truth", "scribbles", "prediction"
     '''
-    img_data = get_cellpose_img_data(folder_path, img_num, load_img=show_res, load_gt=True, load_scribbles=True, mode=mode, bin=bin, suff=suff, load_pred=True, pred_tag=pred_tag)
+    img_data = get_cellpose_img_data(folder_path, img_num, load_img=show_res, load_gt=True, load_scribbles=True, mode=mode, bin=bin, scribble_width=scribble_width, suff=suff, load_pred=True, pred_tag=pred_tag)
     image_path = img_data["img_path"]
     ground_truth_path = img_data["gt_path"]
     scribbles_path = img_data["scribbles_path"]

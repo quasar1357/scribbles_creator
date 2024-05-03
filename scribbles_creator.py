@@ -326,7 +326,7 @@ def pick_sk_squares_optim(sk, sk_max_pix=20, sk_margin=0.75, sq_size=20, sq_pix_
         # Create new squares with the adjusted parameters and try again; add them to the squares
         sk_max_pix_left = sk_max_pix - added_pix
         if print_steps:
-            print("   sk_max_pix_left:", sk_max_pix_left)
+            print("      sk_max_pix_left:", sk_max_pix_left)
         new_squares = pick_sk_squares(sk, sk_max_pix_left, sq_size, sq_pix_range)
         squares = np.logical_or(squares, new_squares)
         added_pix = np.sum(squares)
