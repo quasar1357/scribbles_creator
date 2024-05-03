@@ -39,10 +39,10 @@ def create_even_scribbles(ground_truth, max_perc=0.2, margin=0.75, rel_scribble_
             gt_class_mask = (ground_truth == class_val)
             tot_class_pix = int(np.sum(gt_class_mask))
             max_pix = int(tot_class_pix * max_perc / 100)
-            # If the maximum number of pixels is below 1 square of scribble width, raise a warning and pick 1 square of scribble width pixels instead (avoiding empty scribble annotations)
-            if max_pix < scribble_width**2:
-                print(f"WARNING: The theoretical maximum number of pixels for the entire class {class_val} ({max_pix:.2f}) is below a square of scribble width ({scribble_width**2}). Instead, {scribble_width**2} pixel(s) is/are picked.")
-                max_pix = scribble_width**2
+            # If the maximum number of pixels is below 1, raise a warning and pick 1 pixel instead (avoiding empty scribble annotations)
+            if max_pix < 1:
+                print(f"WARNING: The theoretical maximum number of pixels for the entire class {class_val} ({max_pix:.2f}) is below 1. Instead, 1 pixel is picked.")
+                max_pix = 1
             # If too many pixels are present in this class in the scribble, raise a warning and pick the requested number of pixels
             scribble_class_mask = scribbles == class_val
             num_pix_in_scribble = np.sum(scribble_class_mask)
