@@ -4,3 +4,11 @@ run03	run on 460 images
 	scribbles sind identisch mit lokalem run, aber preds nicht (obwohl gl. seed) --> ok?
 	1792 hatte memory problem (scribble_creator)... --> skippen; dafür bis 4904 --> trotzdem gerade 460 imgs
 	run03b	just some local tests to verify run03
+
+run04	New run together with cellpose
+	With adjusted script, e.g. sample until mergin reached etc.
+	BUT: The removing of pixels if the % exceeds the max (after dilation) was not implemented properly; but shouldn't be an issue...
+	NOTE: In some cases there were more pixels sampled than intended! (e.g. cellpose img 222, bin 0.025)
+	2 analyses: second one with new metrics...
+
+run05	After fixing the above issues, dilation inside loop, and edge cases handled properly
