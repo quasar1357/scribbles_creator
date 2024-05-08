@@ -16,10 +16,11 @@ def create_even_scribbles(ground_truth, max_perc=0.2, margin=0.75, rel_scribble_
         scribble_width (int): the width of the individual scribbles
     Output:
         scribbles (numpy array): the scribble annotation
-    '''    
+    '''
     # Calculate parameters for the scribble annotation
-    num_annots = {"lines": 1, "prim_sk": 1, "sec_sk": 1, "both_sk" : 2, "all": 3}[mode]
-    max_perc_per_type = max_perc / num_annots
+    num_types = {"lines": 1, "prim_sk": 1, "sec_sk": 1, "both_sk" : 2, "all": 3}[mode]
+    # Calculate the maximum percentage of pixels per type
+    max_perc_per_type = max_perc / num_types
     # If the relative scribble length is not given, calculate it by an empirical formula
     if not rel_scribble_len: rel_scribble_len = 20/(max_perc**0.25)
     # The square size is calculated by the number of pixels that would fit into the dimensions of the image
@@ -112,8 +113,6 @@ def scribble_class(gt, class_val, scribble_width=1, sk_max_perc=0.05, sk_margin=
     # Generate a boolean mask for the ground truth matching the class_id
     gt_class_mask = (gt == class_val)
     tot_class_pix = int(np.sum(gt_class_mask))
-    # Initialize the scribble for the class with zeros
-    class_scribble = np.zeros_like(gt, dtype=np.int32)
 
     # Generate the primary and secondary skeleton for the class in this slice
     prim_sk, sec_sk = double_sk_class(gt_class_mask)
@@ -126,35 +125,37 @@ def scribble_class(gt, class_val, scribble_width=1, sk_max_perc=0.05, sk_margin=
     if mode in ("prim_sk", "sec_sk", "both_sk", "all"):
         # Calculate how many TOTAL pixels of each skeleton are allowed in this class given the percentage
         sk_max_pix = tot_class_pix * sk_max_perc / 100
-        # Ensure that the TOTAL maximum number of pixels is at least 1 (avoiding empty scribble annotations)
-        if sk_max_pix < 1:
-            print(f"   WARNING: The theoretical maximum number of pixels for the SQUARES ({sk_max_pix:.2f}) is below 1. Instead, 1 pixel is picked.")
-            sk_max_pix = 1
-        # If the maximum number of pixels is below the square of the scribble width, the square might be decreased to 1 unecessarily; thus adjust the scribble width accordingly
+        # Ensure that the TOTAL maximum number of pixels is at least scribble_width**2 (avoiding empty scribble annotations, i.e. allowing for at least a "point scribble")
         if sk_max_pix < scribble_width**2:
-            print(f"   WARNING: The theoretical maximum number of pixels for the LINES ({sk_max_pix:.2f}) is below the square of the scribble_width ({scribble_width**2}). The scribble width is adjusted to {int(sk_max_pix**0.5)}.")
-            scribble_width_for_squares = int(sk_max_pix**0.5)
-        else:
-            scribble_width_for_squares = scribble_width
+            print(f"   WARNING: The theoretical maximum number of pixels for the SQUARES ({sk_max_pix:.2f}) is below scribble_width**2. Instead, scribble_width**2 pixel(s) is/are picked.")
+            sk_max_pix = scribble_width**2
+        # If the maximum number of pixels is below the square of the scribble width, the square might be decreased to 1 unecessarily; thus adjust the scribble width accordingly
+        # if sk_max_pix < scribble_width**2:
+        #     print(f"   WARNING: The theoretical maximum number of pixels for the SQUARES ({sk_max_pix:.2f}) is below the square of the scribble_width ({scribble_width**2}). The scribble width is adjusted to {int(sk_max_pix**0.5)}.")
+        #     scribble_width_for_squares = int(sk_max_pix**0.5)
+        # else:
+        #     scribble_width_for_squares = scribble_width
         # Define the range of pixels in a SINGLE square
         sq_pix_max = sq_size*2
-        # Make sure that the minimum to pick is not above the total maximum allowed
-        sq_pix_min = min(sq_size//2, int(sk_max_pix))
+        sq_pix_min = sq_size//2
         # Make sure the minumim cannot be 0
         sq_pix_min = max(1, sq_pix_min)
         # Adjust the range to scribble_width (if the scribble is wider, the range needs to be larger to have similar lengths of the scribbles)
         sq_pix_min, sq_pix_max = int(sq_pix_min * scribble_width), int(sq_pix_max * scribble_width)
+        # Make sure that the minimum to pick is not above the total maximum allowed
+        sq_pix_min = min(sq_pix_min, int(sk_max_pix))
+        # Use these values if no range was given
         sq_pix_range = (sq_pix_min, sq_pix_max) if not sq_pix_range else sq_pix_range
         if print_steps:
             print(f"   sk_max_pix: {sk_max_pix:.2f}, sq_size: {sq_size}, sq_pix_range: {sq_pix_range}")
         # If the primary skeleton is needed, pick squares of it
         if mode in ("prim_sk", "both_sk", "all"):
-            prim_sk_squares = pick_sk_squares_optim(prim_sk, gt_class_mask, sk_max_pix=sk_max_pix, sk_margin=sk_margin, sq_size=sq_size, sq_pix_range=sq_pix_range, scribble_width=scribble_width_for_squares, print_steps=print_steps)
+            prim_sk_squares = pick_sk_squares_optim(prim_sk, gt_class_mask, sk_max_pix=sk_max_pix, sk_margin=sk_margin, sq_size=sq_size, sq_pix_range=sq_pix_range, scribble_width=scribble_width, print_steps=print_steps)
             if print_steps:
                 print(f"      prim_sk_squares pix: {np.sum(prim_sk_squares)} = {np.sum(prim_sk_squares)/np.sum(gt_class_mask)*100:.2f}%")
         # If the secondary skeleton is needed, pick squares of it
         if mode in ("sec_sk", "both_sk", "all"):
-            sec_sk_squares = pick_sk_squares_optim(sec_sk, gt_class_mask, sk_max_pix=sk_max_pix, sk_margin=sk_margin, sq_size=sq_size, sq_pix_range=sq_pix_range, scribble_width=scribble_width_for_squares, print_steps=print_steps)
+            sec_sk_squares = pick_sk_squares_optim(sec_sk, gt_class_mask, sk_max_pix=sk_max_pix, sk_margin=sk_margin, sq_size=sq_size, sq_pix_range=sq_pix_range, scribble_width=scribble_width, print_steps=print_steps)
             if print_steps:
                 print(f"      sec_sk_squares pix: {np.sum(sec_sk_squares)} = {np.sum(sec_sk_squares)/np.sum(gt_class_mask)*100:.2f}%")
         # If both skeletons are needed, combine the squares of both skeletons
@@ -166,29 +167,31 @@ def scribble_class(gt, class_val, scribble_width=1, sk_max_perc=0.05, sk_margin=
     if mode in ("lines", "all"):
         # Calculate how many TOTAL pixels of lines are allowed in this class given the percentage
         lines_max_pix = tot_class_pix * lines_max_perc / 100
-        # Ensure that the TOTAL maximum number of pixels is at least a square of scribble_width (i.e. at least one dilated pixel can be picked; which is the case when just a pixel is picked for the line and then dilated)
-        if lines_max_pix < 1:
-            print(f"   WARNING: The theoretical maximum number of pixels for the LINES ({lines_max_pix:.2f}) is below 1. Instead, 1 pixel is picked.")
-            lines_max_pix = 1
-        # If the maximum number of pixels is below the square of the scribble width, even a line of only length 1 will overshoot; thus adjust the scribble width accordingly
+        # Ensure that the TOTAL maximum number of pixels is at least scribble_width**2 (avoiding empty scribble annotations, i.e. allowing for at least a "point scribble")
         if lines_max_pix < scribble_width**2:
-            print(f"   WARNING: The theoretical maximum number of pixels for the LINES ({lines_max_pix:.2f}) is below the square of the scribble_width ({scribble_width**2}). The scribble width is adjusted to {int(lines_max_pix**0.5)}.")
-            scribble_width_for_lines = int(lines_max_pix**0.5)
-        else:
-            scribble_width_for_lines = scribble_width
+            print(f"   WARNING: The theoretical maximum number of pixels for the LINES ({lines_max_pix:.2f}) is below scribble_width**2. Instead, scribble_width**2 pixel(s) is/are picked.")
+            lines_max_pix = scribble_width**2
+        # # If the maximum number of pixels is below the square of the scribble width, even a line of only length 1 will overshoot; thus adjust the scribble width accordingly
+        # if lines_max_pix < scribble_width**2:
+        #     print(f"   WARNING: The theoretical maximum number of pixels for the LINES ({lines_max_pix:.2f}) is below the square of the scribble_width ({scribble_width**2}). The scribble width is adjusted to {int(lines_max_pix**0.5)}.")
+        #     scribble_width_for_lines = int(lines_max_pix**0.5)
+        # else:
+        #     scribble_width_for_lines = scribble_width
         # Define the range of pixels in a SINGLE line
         line_pix_max = sq_size*2
-        # Ensure that the line is allowed to be as short as the maximum total pixels in all lines
-        line_pix_min = min(sq_size//2, int(lines_max_pix))
+        line_pix_min = sq_size//2
         # Adjust the range to the scribble_width (if the scribble is wider, the range need to be higher to have similar lengths of the scribbles)
-        line_pix_min, line_pix_max = int(line_pix_min * scribble_width_for_lines), int(line_pix_max * scribble_width_for_lines)        
+        line_pix_min, line_pix_max = int(line_pix_min * scribble_width), int(line_pix_max * scribble_width)
+        # Ensure that the line is allowed to be as short as the maximum total pixels in all lines
+        line_pix_min = min(line_pix_min, int(lines_max_pix))
+        # Use these values if no range was given
         line_pix_range = (line_pix_min, line_pix_max) if not line_pix_range else line_pix_range
         if print_steps:
             print(f"   lines_max_pix: {lines_max_pix:.2f}, line_pix_range: {line_pix_range}")
-        lines = create_lines_optim(prim_sk, gt_class_mask, lines_max_pix, lines_margin, line_pix_range, scribble_width_for_lines, print_steps=print_steps)
+        lines = create_lines_optim(prim_sk, gt_class_mask, lines_max_pix, lines_margin, line_pix_range, scribble_width, print_steps=print_steps)
         if print_steps:
             print(f"      lines pix: {np.sum(lines)} = {np.sum(lines)/np.sum(gt_class_mask)*100:.2f}%")
-    if mode =="all":
+    if mode == "all":
         lines_and_squares = np.logical_or(lines, both_sk_squares)
 
     # Define the scribble type to use
@@ -197,14 +200,14 @@ def scribble_class(gt, class_val, scribble_width=1, sk_max_perc=0.05, sk_margin=
                            "sec_sk": sec_sk_squares,
                            "both_sk": both_sk_squares,
                            "all": lines_and_squares}[mode]
-    
+
     # Ensure that the scribble is within the ground truth mask
     before = np.sum(class_scribble_mask)
     class_scribble_mask = np.logical_and(class_scribble_mask, gt_class_mask)
     after = np.sum(class_scribble_mask)
     # Print the total picked pixels
     if print_steps:
-        print(f"   Chceking for pixels OUTSIDE the class ground truth (all scribbles types together) - before: {before} = {before/np.sum(gt_class_mask)*100:.2f}%")
+        print(f"   Checking for pixels OUTSIDE the class ground truth (all scribbles types together) - before: {before} = {before/np.sum(gt_class_mask)*100:.2f}%")
         print(f"      {before - after} pixel(s) removed from the scribble because they were outside the ground truth mask (probably due to dilation to scribble width).")
         removed_pix = np.argwhere((class_scribble_mask == True) & (gt_class_mask == False))
         print(f"      Coordinates of removed pixels: {removed_pix}")
@@ -272,7 +275,7 @@ def pick_sk_squares(sk, gt_mask, sk_max_pix=20, sq_size=20, sq_pix_range=(10,40)
     while overshoots < 100 and idx < pix_in_sk:
         # Pick a random square from the skeleton
         current_coordinate = sk_coordinates[idx]
-        idx += idx_step    
+        idx += idx_step
         sk_square = get_square(sk_dilated, current_coordinate, sq_size)
         pix_in_sq = np.sum(sk_square)
         future_total = added_pix + pix_in_sq
@@ -323,10 +326,11 @@ def pick_sk_squares_optim(sk, gt_mask, sk_max_pix=20, sk_margin=0.75, sq_size=20
     # If not enough squares were added, try again with smaller squares and a range starting at a lower value (allowing fewer pixels in a square)
     # NOTE: We check at least for 1 pixel, since otherwise we would allow for empty scribbles; on the other hand we take floor, to ensure it cannot be expected to be above the allowed maximum
     while added_pix < max(1, np.floor(sk_max_pix * sk_margin)):
-        # Do not reduce the square size below 1
-        if sq_size >= 2:
+        # Do not reduce the square size below scribble_width
+        if sq_size > scribble_width:
             # Reduce the square size
-            sq_size = sq_size//2
+            diff_to_widht = sq_size - scribble_width
+            sq_size = scribble_width + diff_to_widht//2
             # Adjust the range accordingly
             # Make sure that the minimum to pick is not above the total maximum allowed
             sq_pix_min = min(sq_pix_range[0]//2, int(sk_max_pix))
