@@ -3,7 +3,7 @@ from skimage.morphology import *
 from skimage.draw import line
 from scipy.spatial import distance
 
-def create_even_scribbles(ground_truth, max_perc=0.2, margin=0.75, rel_scribble_len=False, mode="all", print_steps=False, scribble_width=1):
+def create_even_scribbles(ground_truth, max_perc=0.2, margin=0.75, rel_scribble_len=False, scribble_width=1, mode="all", print_steps=False, enforce_max_perc=False):
     '''Generate the scribble annotation for the ground truth using an even distribution of pixels among the chosen scribble types (all, both skeletons or individual skeletons and lines).
     This function uses a default scribble_width of 1, a formula to determine the square size and a range for pixels inside a square or line of half to double one square side length.
     These parameters should be suited for max_perc values between approximately 0.05 and 1.
@@ -32,30 +32,31 @@ def create_even_scribbles(ground_truth, max_perc=0.2, margin=0.75, rel_scribble_
 
     # Handle edge cases where too many pixels were picked
     # (Should only happen if the total maximum is < 3 and the minimum of one pixel was picked per scribble type, even though this pushed the total percentage above the maximum)
-    # Do this for each class (= value) in the ground truth
-    for class_val in set(ground_truth.flatten()):
-        # Skip the background class
-        if class_val == 0:
-            continue
-        else:
-            # Find the maximum number of pixels that should be picked for the class
-            gt_class_mask = (ground_truth == class_val)
-            tot_class_pix = int(np.sum(gt_class_mask))
-            max_pix = int(tot_class_pix * max_perc / 100)
-            # If the maximum number of pixels is below 1, raise a warning and pick 1 pixel instead (avoiding empty scribble annotations)
-            if max_pix < 1:
-                print(f"\nWARNING: The theoretical maximum number of pixels for the ENTIRE CLASS {class_val} ({max_pix}) is below 1. Instead, 1 pixel is picked.")
-                max_pix = 1
-            # If too many pixels are present in this class in the scribble, raise a warning and pick the requested number of pixels
-            scribble_class_mask = scribbles == class_val
-            num_pix_in_scribble = np.sum(scribble_class_mask)
-            # Remove pixels if the total number of pixels exceeds the maximum
-            if num_pix_in_scribble > max_pix:
-                print(f"\nWARNING: The total number of picked pixels for class {class_val} ({num_pix_in_scribble}) exceeds the maximum ({max_pix}). Removing pixels...")
-                scribble_class_coord = np.where(scribble_class_mask)
-                scribbles[scribble_class_coord[0][max_pix:], scribble_class_coord[1][max_pix:]] = 0
-                new_num_pix_in_scribble = np.sum(scribbles == class_val)
-                print(f"New total number of pixels for this class: {new_num_pix_in_scribble} ({new_num_pix_in_scribble/tot_class_pix*100:.4f}%)")
+    if enforce_max_perc:
+        # Do this for each class (= value) in the ground truth
+        for class_val in set(ground_truth.flatten()):
+            # Skip the background class
+            if class_val == 0:
+                continue
+            else:
+                # Find the maximum number of pixels that should be picked for the class
+                gt_class_mask = (ground_truth == class_val)
+                tot_class_pix = int(np.sum(gt_class_mask))
+                max_pix = int(tot_class_pix * max_perc / 100)
+                # If the maximum number of pixels is below 1, raise a warning and pick 1 pixel instead (avoiding empty scribble annotations)
+                if max_pix < 1:
+                    print(f"\nWARNING: The theoretical maximum number of pixels for the ENTIRE CLASS {class_val} ({max_pix}) is below 1. Instead, 1 pixel is picked.")
+                    max_pix = 1
+                # If too many pixels are present in this class in the scribble, raise a warning and pick the requested number of pixels
+                scribble_class_mask = scribbles == class_val
+                num_pix_in_scribble = np.sum(scribble_class_mask)
+                # Remove pixels if the total number of pixels exceeds the maximum
+                if num_pix_in_scribble > max_pix:
+                    print(f"\nWARNING: The total number of picked pixels for class {class_val} ({num_pix_in_scribble}) exceeds the maximum ({max_pix}). Removing pixels...")
+                    scribble_class_coord = np.where(scribble_class_mask)
+                    scribbles[scribble_class_coord[0][max_pix:], scribble_class_coord[1][max_pix:]] = 0
+                    new_num_pix_in_scribble = np.sum(scribbles == class_val)
+                    print(f"New total number of pixels for this class: {new_num_pix_in_scribble} ({new_num_pix_in_scribble/tot_class_pix*100:.4f}%)")
 
     return scribbles
 
@@ -375,7 +376,7 @@ def get_square(mask, coord, sq_size=20):
     square_mask[coord[0]-red:coord[0]+inc, coord[1]-red:coord[1]+inc] = mask[coord[0]-red:coord[0]+inc, coord[1]-red:coord[1]+inc]
     return square_mask
 
-def create_lines(sk, gt_mask, lines_max_pix=20, line_pix_range=(10, 40), scribble_width=1, line_crop=2, print_details=False):
+def create_lines(sk, gt_mask, lines_max_pix=20, line_pix_range=(10, 40), scribble_width=1, line_crop=2, print_details=True):
     '''
     Create lines leading from a skeleton to the edge of the mask.
     Input:
@@ -459,8 +460,7 @@ def create_lines_optim(sk, gt_mask, lines_max_pix=20, lines_margin=0.75, line_pi
     Output:
         lines (numpy array): the mask of all lines
     '''
-    # If the lines are dilated (also on each side), the crop needs to be adjusted accordingly
-    line_crop = init_line_crop + scribble_width - 1
+    line_crop = init_line_crop
     lines, tried_lines = create_lines(sk, gt_mask, lines_max_pix, line_pix_range, scribble_width, line_crop)
     avg_length_tried = get_lines_stats(tried_lines)
     added_pix = np.sum(lines)
@@ -475,7 +475,7 @@ def create_lines_optim(sk, gt_mask, lines_max_pix=20, lines_margin=0.75, line_pi
             if print_steps:
                 print("         Adjusting line range to", line_pix_range)
         # If this did not work (i.e. the lines are longer than the lines_max_pix), shorten the lines by increasing the lines crop
-        elif line_crop < max(gt_mask.shape) / 2:
+        elif line_crop < max(gt_mask.shape) / 2 and avg_length_tried > 0:
             # If the average pixels of the lines tried ~ (len * width) in the last run is still far from the lines_max_pix, increase the lines crop by a larger amount
             dil_pix_tried = avg_length_tried * scribble_width + (scribble_width-1) * scribble_width
             if dil_pix_tried > lines_max_pix * 5:

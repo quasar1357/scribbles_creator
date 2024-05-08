@@ -149,7 +149,7 @@ def create_cellpose_gt(folder_path, img_num, save_res=True, show_res=False):
 
 
 
-def create_cellpose_scribble(folder_path, img_num, bin=0.1, margin=0.75, rel_scribble_len=False, mode="all", save_res=False, suff=False, show_res=False, show_img=True, print_steps=False, scribble_width=1):
+def create_cellpose_scribble(folder_path, img_num, bin=0.1, margin=0.75, rel_scribble_len=False, scribble_width=1, mode="all", enforce_max_perc=False, save_res=False, suff=False, show_res=False, show_img=True, print_steps=False):
     '''
     Load the ground truth and create scribbles for the given image. Scribbles are created by sampling a certain percentage of the ground truth pixels and then expanding the scribbles to the given scribble width.
     The scribbles can be saved as an image and can be shown in a napari viewer if desired.
@@ -175,7 +175,7 @@ def create_cellpose_scribble(folder_path, img_num, bin=0.1, margin=0.75, rel_scr
     img_data = get_cellpose_img_data(folder_path, img_num, load_img=show_img, load_gt=True, mode=mode, bin=bin, scribble_width=scribble_width, suff=suff)
     ground_truth = img_data["gt"]
     # Create the scribbles
-    scribbles = create_even_scribbles(ground_truth, max_perc=bin, margin=margin, rel_scribble_len=rel_scribble_len, mode=mode, print_steps=print_steps, scribble_width=scribble_width)
+    scribbles = create_even_scribbles(ground_truth, max_perc=bin, margin=margin, rel_scribble_len=rel_scribble_len, scribble_width=scribble_width, mode=mode, print_steps=print_steps, enforce_max_perc=enforce_max_perc)
     perc_labelled = np.sum(scribbles>0) / (scribbles.shape[0] * scribbles.shape[1]) * 100
 
     if save_res:
