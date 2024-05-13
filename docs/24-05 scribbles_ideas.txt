@@ -1,0 +1,81 @@
+// ~145: sq_pix_min = min(XY, int(sk_max_pix) --> NACH erweitern mal scribble_width
+// --> same for lines...
+
+
+// reduce sq_size more cleverly (not just //2)
+
+
+have to adjust rel_len to scribble width input value! (Originally was suited for width = 1!) ?
+--> maybe no, because we want rel_len to have this meaning! --> pix in square have to be higher...
+we did fewer scribbles but with this length... --> should be same
+
+
+// Types für jede klasse anpassen je nachdem wieviele Platz haben?
+// Vielleicht eher sagen, dass wenn mode und width gewählt, ist das = minimum --> ausgleichen, wenn in kleinen Klassen zu viel...
+// --> ODER einfach allg. ausgleichen, damit allg. kleine annotations möglich sind...
+
+// - wenn je type 1 pix, aber das doch noch zu viele --> nimm davon wiederum nur 1 !!!
+// - prints anpassen...
+
+perc * annot_pix = class_pix / img_pix
+x * annot_pix = img_pix / num_classes
+
+annot_class_pix_1 = img_pix / num_classes * perc	(25'000 * 0.1%)
+annot_class_pix_1 = annot_pix * perc_new			(60'000 * 0.1%)
+
+img_pix / num_classes * perc = annot_pix * perc_new
+perc_new = img_pix / num_classes * perc / annot_pix
+
+6/10 * x2 = 1/4 * x1
+x2 = 1/4 * x1 / 6 * 10
+new_perc = 1/num_classes * perc / pix_annot * pix_in_img
+
+=======================================================================
+
+
+
+
+// Stop when pix_left < width**2 --> set square_size to pix_left**0.5
+// --> macht nur Sinn, wenn wir kleinere square sizes zulassen als width**2, was wir jetzt nicht mehr machen...
+
+
+
+
+
+=======================================================================
+
+
+
+take only as many scribble types (for a class) as fit into
+--> BUT would have to be specific for class, and there we are already differentiating sq and lines...
+
+# Check if the number of pixels per type for the smallest class is below a 'point scribble' of width scribble_width containing scribble_width**2 pixels
+    num_class_pix = [np.sum(ground_truth == class_val) for class_val in set(ground_truth.flatten())]
+    min_num_class_pix = min(num_class_pix)
+    annot_pix_in_min_class = min_num_class_pix * max_perc / 100
+    annot_pix_in_min_class_per_type = annot_pix_in_min_class / num_types
+    if annot_pix_in_min_class_per_type < scribble_width ** 2:
+        # If the minimum number of pixels in a class is below the number of pixels in a 'point scribble' of width scribble_width, adjust the mode so that at least one point scribble may be sampled for each type in the smallest class
+        num_types = max(1, annot_pix_in_min_class // scribble_width ** 2)
+        new_mode = {1: "prim_sk", 2: "both_sk"}[num_types]
+        print(f"\nWARNING: The number of pixels per type for the smallest class is below a 'point scribble' of width {scribble_width} containing scribble_width**2 pixels. Instead of {mode} scribbles, only {new_mode} scribbles will be sampled.")
+        mode = new_mode
+
+
+
+===========
+
+Scenario A:
+
+Bild = 100'000 pix, ich will 0.1% annot = 100 pix
+Classes = 8:2 --> 80'000 | 20'000
+Ansatz 1: 50 pix je class --> 50 | 50 (--> wären je type 16.6 | ...)
+Ansatz 2:  0.1%  je class --> 80 | 20 (--> wären je type 26.6 | 6.6)
+Ansatz 3: mean von Ansatz 1 & 2 --> 65 | 35 (--> wären je type 21.6 | 11.6)
+
+Scenario B:
+Bild = 100'000 pix, ich will 0.1% annot = 100 pix
+Classes = 6:2:1:1
+Ansatz 1: 25 pix je class --> 25 | 25 | 25 | 25 (--> wären je type 8.3 | ...)
+Ansatz 2:  0.1%  je class --> 60 | 20 | 10 | 10 (--> wären je type 20 | 6.6 | 3.3 | 3.3)
+Ansatz 3: mean von Ansatz 1 & 2 --> 42.5 | 22.5 | 17.5 | 17.5 (--> wären je type 14.16 | 7.5 | 5.8 | 5.8)
