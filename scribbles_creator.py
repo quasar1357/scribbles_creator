@@ -35,6 +35,12 @@ def create_even_scribbles(ground_truth, max_perc=0.2, margin=0.75, rel_scribble_
 
     # Generate the scribble annotation for the ground truth
     scribbles = create_scribbles(ground_truth, scribble_width=scribble_width, sk_max_perc=max_perc_per_type, sk_margin=margin, sq_size=sq_size, sq_pix_range=False, lines_max_perc=max_perc_per_type, lines_margin=margin, line_pix_range=False, mode=mode, class_dist=class_dist, enforce_max_perc=enforce_max_perc, print_steps=print_steps)            
+    # Calculate the percentage of annotated pixels and optionally print it
+    pix_annot = np.sum(scribbles != 0)
+    pix_tot = np.sum(ground_truth != 0)
+    percent_annot = pix_annot / pix_tot * 100
+    if print_steps:
+        print(f"TOTAL annotation: {pix_annot} = {percent_annot:.3f}% \n")
 
     return scribbles
 
@@ -387,27 +393,20 @@ def pick_sk_squares_optim(sk, gt_mask, sk_max_pix=20, sk_margin=0.75, sq_size=20
     added_pix = np.sum(squares)
     # If not enough squares were added, try again with smaller squares and a range starting at a lower value (allowing fewer pixels in a square)
     # NOTE: We check at least for 1 pixel, since otherwise we would allow for empty scribbles; on the other hand we take floor, to ensure it cannot be expected to be above the allowed maximum
-    while added_pix < max(1, np.floor(sk_max_pix * sk_margin)):
-        # Do not reduce the square size below scribble_width
-        if sq_size > scribble_width:
-            # Reduce the square size
-            diff_to_width = sq_size - scribble_width
-            sq_size = scribble_width + diff_to_width//2
-            # Adjust the range accordingly
-            # Make sure that the minimum to pick is not above the total maximum allowed
-            sq_pix_min = min(sq_pix_range[0]//2, int(sk_max_pix))
-            # Make sure the minumim cannot be 0
-            sq_pix_min = max(1, sq_pix_min)
-            sq_pix_range = (sq_pix_min, sq_pix_range[1])
-            if print_steps:
-                print("         Adjusting square size and range to", sq_size, sq_pix_range)
-        # If we have reached the limit of what we can sample, break the loop and raise a warning (if at least some squares were added) or an error (if no squares were added)
-        else:
-            if added_pix == 0:
-                print("      ERROR: No squares were added!")
-            else:
-                print(f"      WARNING: It was not possible to sample {sk_margin * 100}% of the requested pixels. Only {added_pix} pixels in squares were added!")
-            break
+    while np.all((added_pix < max(1, np.floor(sk_max_pix * sk_margin)), # Stop if the required minimum number of pixels was added
+                   sq_size > scribble_width, # Do not reduce the square size below scribble_width
+                    added_pix < np.sum(sk))): # Stop if all pixels in the skeleton were added (no further improvement possible)
+        # Reduce the square size
+        diff_to_width = sq_size - scribble_width
+        sq_size = scribble_width + diff_to_width//2
+        # Adjust the range accordingly
+        # Make sure that the minimum to pick is not above the total maximum allowed
+        sq_pix_min = min(sq_pix_range[0]//2, int(sk_max_pix))
+        # Make sure the minumim cannot be 0
+        sq_pix_min = max(1, sq_pix_min)
+        sq_pix_range = (sq_pix_min, sq_pix_range[1])
+        if print_steps:
+            print("         Adjusting square size and range to", sq_size, sq_pix_range)
         # Sample new squares with the adjusted parameters and try again; add them to the squares
         sk_max_pix_left = sk_max_pix - added_pix
         if print_steps:
@@ -415,6 +414,13 @@ def pick_sk_squares_optim(sk, gt_mask, sk_max_pix=20, sk_margin=0.75, sq_size=20
         new_squares = pick_sk_squares(sk, gt_mask, sk_max_pix_left, sq_size, sq_pix_range, scribble_width)
         squares = np.logical_or(squares, new_squares)
         added_pix = np.sum(squares)
+    # If we have finished looping because we reached the limit of what we can sample, raise a warning if too little squares were added or an error if no squares were added
+    if added_pix == 0:
+        print("      ERROR: No squares were added!")
+    elif added_pix < max(1, np.floor(sk_max_pix * sk_margin)):
+        print(f"      WARNING: It was not possible to sample {sk_margin * 100}% of the requested pixels. Only {added_pix} pixels in squares were added!")
+    if added_pix == np.sum(sk):
+        print("      NOTE: All pixels in the skeleton were added.")
     return squares
 
 def get_square(mask, coord, sq_size=20):
@@ -458,7 +464,8 @@ def create_lines(sk, gt_mask, lines_max_pix=20, line_pix_range=(10, 40), scribbl
     all_lines = np.zeros_like(gt_mask, dtype=np.bool8)
     added_pix = 0
     idx = 0
-    idx_step = min(5, int(np.ceil(pix_in_sk/250))) # 1
+    idx_step = scribble_width + 3
+    idx_step = min(idx_step, int(np.ceil(pix_in_sk/250))) # 1
     overshoots = 0
     tried_lines = []
     if print_details:
@@ -556,13 +563,6 @@ def create_lines_optim(sk, gt_mask, lines_max_pix=20, lines_margin=0.75, line_pi
             line_crop = line_crop + crop_increase
             if print_steps:
                 print("         Adjusting line_crop to", line_crop)
-        # If we have reached the limit of what we can sample, break the loop and raise a warning (if at least some lines were added) or an error (if no lines were added)
-        else:
-            if added_pix == 0:
-                print("   ERROR: No lines were added!")
-            else:
-                print(f"   WARNING: It was not possible to sample {lines_margin * 100}% of the requested pixels. Only {added_pix} pixels in lines were added!")
-            break
         # Create new lines with the adjusted parameters and try again; add them to the lines
         lines_max_pix_left = lines_max_pix - added_pix
         if print_steps:
@@ -571,6 +571,12 @@ def create_lines_optim(sk, gt_mask, lines_max_pix=20, lines_margin=0.75, line_pi
         avg_length_tried = get_lines_stats(tried_lines)[0]
         lines = np.logical_or(lines, new_lines)
         added_pix = np.sum(lines)
+
+    # If we have finished looping because we reached the limit of what we can sample, raise a warning if too little lines were added or an error if no lines were added
+    if added_pix == 0:
+        print("   ERROR: No lines were added!")
+    elif added_pix < max(1, np.floor(lines_max_pix * lines_margin)):
+        print(f"   WARNING: It was not possible to sample {lines_margin * 100}% of the requested pixels. Only {added_pix} pixels in lines were added!")
     return lines
 
 def get_lines_stats(line_list):
