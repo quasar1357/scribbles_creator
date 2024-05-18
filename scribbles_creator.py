@@ -394,8 +394,8 @@ def pick_sk_squares_optim(sk, gt_mask, sk_max_pix=20, sk_margin=0.75, sq_size=20
     # If not enough squares were added, try again with smaller squares and a range starting at a lower value (allowing fewer pixels in a square)
     # NOTE: We check at least for 1 pixel, since otherwise we would allow for empty scribbles; on the other hand we take floor, to ensure it cannot be expected to be above the allowed maximum
     while np.all((added_pix < max(1, np.floor(sk_max_pix * sk_margin)), # Stop if the required minimum number of pixels was added
-                   sq_size > scribble_width, # Do not reduce the square size below scribble_width
-                    added_pix < np.sum(sk))): # Stop if all pixels in the skeleton were added (no further improvement possible)
+                  sq_size > scribble_width, # Do not reduce the square size below scribble_width
+                  added_pix < np.sum(sk))): # Stop if all pixels in the skeleton were added (no further improvement possible)
         # Reduce the square size
         diff_to_width = sq_size - scribble_width
         sq_size = scribble_width + diff_to_width//2
@@ -419,7 +419,12 @@ def pick_sk_squares_optim(sk, gt_mask, sk_max_pix=20, sk_margin=0.75, sq_size=20
         print("      ERROR: No squares were added!")
     elif added_pix < max(1, np.floor(sk_max_pix * sk_margin)):
         print(f"      WARNING: It was not possible to sample {sk_margin * 100}% of the requested pixels. Only {added_pix} pixels in squares were added!")
-    if added_pix == np.sum(sk):
+    # Create a dilated version of the skeleton (same as the one that the squares are picked from)
+    sk_dilated = binary_dilation(sk, square(scribble_width))
+    # Ensure all pixels of the dilated skeleton are within the mask
+    sk_dilated = np.logical_and(sk_dilated, gt_mask)
+    # Compare the number of pixels in the skeleton and the number of pixels in the squares, report if all pixels were added
+    if added_pix == np.sum(sk_dilated):
         print("      NOTE: All pixels in the skeleton were added.")
     return squares
 
@@ -465,7 +470,8 @@ def create_lines(sk, gt_mask, lines_max_pix=20, line_pix_range=(10, 40), scribbl
     added_pix = 0
     idx = 0
     idx_step = scribble_width + 3
-    idx_step = min(idx_step, int(np.ceil(pix_in_sk/250))) # 1
+    # Make sure to take at least a certain amount of positions on the skeleton (to avoid too few lines)
+    idx_step = min(idx_step, scribble_width + int(np.ceil(pix_in_sk/250))) # 1
     overshoots = 0
     tried_lines = []
     if print_details:
@@ -534,6 +540,8 @@ def create_lines_optim(sk, gt_mask, lines_max_pix=20, lines_margin=0.75, line_pi
     lines, tried_lines = create_lines(sk, gt_mask, lines_max_pix, line_pix_range, scribble_width, line_crop)
     avg_length_tried = get_lines_stats(tried_lines)[0]
     added_pix = np.sum(lines)
+    lines_max_pix_left = lines_max_pix - added_pix
+
     # If not enough lines were added, try again with adjusted parameters
     # NOTE: We check at least for 1 pixel, since otherwise we would allow for empty scribbles; on the other hand we take floor, to ensure it cannot be expected to be above the allowed maximum
     while added_pix < max(1, np.floor(lines_max_pix * lines_margin)):
@@ -546,16 +554,16 @@ def create_lines_optim(sk, gt_mask, lines_max_pix=20, lines_margin=0.75, line_pi
                 print("         Adjusting line range to", line_pix_range)
         # If this did not work (which generally means the lines are longer than the lines_max_pix), shorten the lines by increasing the lines crop
         elif line_crop < max(gt_mask.shape) / 2 and avg_length_tried > 0:
-            # If the average pixels of the lines tried ~ (len * width) in the last run is still far from the lines_max_pix, increase the lines crop by a larger amount
+            # If the average pixels of the lines tried ~ (len * width) in the last run is still far from the lines_max_pix_left, increase the lines crop by a larger amount
             dil_pix_tried = avg_length_tried * scribble_width + (scribble_width-1) * scribble_width
-            if dil_pix_tried > lines_max_pix * 5:
-                pix_to_remove = int(np.ceil((dil_pix_tried - lines_max_pix) * 0.75))
+            if dil_pix_tried > lines_max_pix_left * 5:
+                pix_to_remove = int(np.ceil((dil_pix_tried - lines_max_pix_left) * 0.75))
                 # The crop increase has to be adjusted dependent of the scribble width, since the crop refers to the single pix line (plus there are overhangs on each side)
                 crop_increase = int( ( pix_to_remove - (scribble_width-1) * scribble_width ) / scribble_width )
-            # If the average pixels of the lines tried ~ (len * width) in the last run is close to the lines_max_pix, increase the lines crop by a smaller amount
+            # If the average pixels of the lines tried ~ (len * width) in the last run is close to the lines_max_pix_left, increase the lines crop by a smaller amount
             else:
-                # Ensure that the steps are not becoming too large to fit inside the lines_max_pix (also considering the scribble_width)
-                needed_line_len = int( ( lines_max_pix - (scribble_width-1) * scribble_width ) / scribble_width )
+                # Ensure that the steps are not becoming too large to fit inside the lines_max_pix_left (also considering the scribble_width)
+                needed_line_len = int( ( lines_max_pix_left - (scribble_width-1) * scribble_width ) / scribble_width )
                 # Rather make the crop steps a bit smaller than absolutely necessary
                 crop_increase = int(np.ceil(0.75 * needed_line_len))
             # Increase by at least 1, since otherwise nothing will be changed
@@ -563,6 +571,9 @@ def create_lines_optim(sk, gt_mask, lines_max_pix=20, lines_margin=0.75, line_pi
             line_crop = line_crop + crop_increase
             if print_steps:
                 print("         Adjusting line_crop to", line_crop)
+        else:
+            print("         NOTE: No more options to adjust the parameters.")
+            break
         # Create new lines with the adjusted parameters and try again; add them to the lines
         lines_max_pix_left = lines_max_pix - added_pix
         if print_steps:
@@ -577,6 +588,7 @@ def create_lines_optim(sk, gt_mask, lines_max_pix=20, lines_margin=0.75, line_pi
         print("   ERROR: No lines were added!")
     elif added_pix < max(1, np.floor(lines_max_pix * lines_margin)):
         print(f"   WARNING: It was not possible to sample {lines_margin * 100}% of the requested pixels. Only {added_pix} pixels in lines were added!")
+
     return lines
 
 def get_lines_stats(line_list):
