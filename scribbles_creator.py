@@ -389,13 +389,18 @@ def pick_sk_squares_optim(sk, gt_mask, sk_max_pix=20, sk_margin=0.75, sq_size=20
     Output:
         squares (numpy array): the mask of all squares
     '''
+    # For checking if all pixels were added: Create a dilated version of the skeleton (same as the one that the squares are picked from)
+    sk_dilated = binary_dilation(sk, square(scribble_width))
+    # Ensure all pixels of the dilated skeleton are within the mask
+    sk_dilated = np.logical_and(sk_dilated, gt_mask)
+    # Sample squares from the skeleton
     squares = pick_sk_squares(sk, gt_mask, sk_max_pix, sq_size, sq_pix_range, scribble_width)
     added_pix = np.sum(squares)
     # If not enough squares were added, try again with smaller squares and a range starting at a lower value (allowing fewer pixels in a square)
     # NOTE: We check at least for 1 pixel, since otherwise we would allow for empty scribbles; on the other hand we take floor, to ensure it cannot be expected to be above the allowed maximum
     while np.all((added_pix < max(1, np.floor(sk_max_pix * sk_margin)), # Stop if the required minimum number of pixels was added
                   sq_size > scribble_width, # Do not reduce the square size below scribble_width
-                  added_pix < np.sum(sk))): # Stop if all pixels in the skeleton were added (no further improvement possible)
+                  added_pix < np.sum(sk_dilated))): # Stop if all pixels in the dilated skeleton were added (no further improvement possible)
         # Reduce the square size
         diff_to_width = sq_size - scribble_width
         sq_size = scribble_width + diff_to_width//2
@@ -419,10 +424,6 @@ def pick_sk_squares_optim(sk, gt_mask, sk_max_pix=20, sk_margin=0.75, sq_size=20
         print("      ERROR: No squares were added!")
     elif added_pix < max(1, np.floor(sk_max_pix * sk_margin)):
         print(f"      WARNING: It was not possible to sample {sk_margin * 100}% of the requested pixels. Only {added_pix} pixels in squares were added!")
-    # Create a dilated version of the skeleton (same as the one that the squares are picked from)
-    sk_dilated = binary_dilation(sk, square(scribble_width))
-    # Ensure all pixels of the dilated skeleton are within the mask
-    sk_dilated = np.logical_and(sk_dilated, gt_mask)
     # Compare the number of pixels in the skeleton and the number of pixels in the squares, report if all pixels were added
     if added_pix == np.sum(sk_dilated):
         print("      NOTE: All pixels in the skeleton were added.")
