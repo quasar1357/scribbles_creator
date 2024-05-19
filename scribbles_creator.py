@@ -167,6 +167,7 @@ def scribble_class(ground_truth, class_val, scribble_width=1, sk_max_perc=0.05, 
         if sk_max_pix < scribble_width**2:
             print(f"   WARNING: The theoretical maximum number of pixels for the SQUARES ({sk_max_pix:.2f}) is below scribble_width**2 ({scribble_width**2}). Instead, {scribble_width**2} pixel(s) is/are sampled.")
             sk_max_pix = scribble_width**2
+            sq_size = scribble_width
         # Define the range of pixels in a SINGLE square
         sq_pix_max = sq_size*2
         sq_pix_min = sq_size//2
@@ -227,9 +228,12 @@ def scribble_class(ground_truth, class_val, scribble_width=1, sk_max_perc=0.05, 
         if lines_max_pix < scribble_width**2:
             print(f"   WARNING: The theoretical maximum number of pixels for the LINES ({lines_max_pix:.2f}) is below scribble_width**2 ({scribble_width**2}). Instead, {scribble_width**2} pixel(s) is/are sampled.")
             lines_max_pix = scribble_width**2
+            avg_line_len = scribble_width
+        else:
+            avg_line_len = sq_size
         # Define the range of pixels in a SINGLE line
-        line_pix_max = sq_size*2
-        line_pix_min = sq_size//2
+        line_pix_max = avg_line_len*2
+        line_pix_min = avg_line_len//2
         # Make sure the minumim cannot be 0
         line_pix_min = max(1, line_pix_min)
         # Adjust the range to the scribble_width (if the scribble is wider, the range need to be higher to have similar lengths of the scribbles)
@@ -572,17 +576,18 @@ def create_lines_optim(sk, gt_mask, lines_max_pix=20, lines_margin=0.75, line_pi
         # If this did not work (which generally means the lines are longer than the lines_max_pix), shorten the lines by increasing the lines crop
         elif (line_crop < max(gt_mask.shape) / 2) and (avg_length_tried > 0):
             # If the average pixels of the lines tried ~ (len * width) in the last run is still far from the lines_max_pix_left, increase the lines crop by a larger amount
-            dil_pix_tried = avg_length_tried * scribble_width + (scribble_width-1) * scribble_width
+            dil_pix_tried = avg_length_tried * scribble_width #avg_length_tried * scribble_width + (scribble_width-1) * scribble_width
             if dil_pix_tried > lines_max_pix_left * 5:
                 pix_to_remove = int(np.ceil((dil_pix_tried - lines_max_pix_left) * 0.75))
                 # The crop increase has to be adjusted dependent of the scribble width, since the crop refers to the single pix line (plus there are overhangs on each side)
-                crop_increase = int( ( pix_to_remove - (scribble_width-1) * scribble_width ) / scribble_width )
+                crop_increase = int(pix_to_remove / scribble_width) #int( ( pix_to_remove - (scribble_width-1) * scribble_width ) / scribble_width )
             # If the average pixels of the lines tried ~ (len * width) in the last run is close to the lines_max_pix_left, increase the lines crop by a smaller amount
             else:
                 # Ensure that the steps are not becoming too large to fit inside the lines_max_pix_left (also considering the scribble_width)
-                needed_line_len = int( ( lines_max_pix_left - (scribble_width-1) * scribble_width ) / scribble_width )
+                needed_line_len = int(lines_max_pix_left / scribble_width) #int( ( lines_max_pix_left - (scribble_width-1) * scribble_width ) / scribble_width )
+                crop_increase = avg_length_tried - needed_line_len
                 # Rather make the crop steps a bit smaller than absolutely necessary
-                crop_increase = int(np.ceil(0.75 * needed_line_len))
+                crop_increase = int(np.ceil(0.75 * crop_increase))
             # Increase by at least 1, since otherwise nothing will be changed
             crop_increase = max(1, crop_increase)
             line_crop = line_crop + crop_increase
