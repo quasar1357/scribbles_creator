@@ -308,7 +308,7 @@ def reduce_scribble(scribbles, max_pix):
         scribbles[scribble_coord[0][max_pix:], scribble_coord[1][max_pix:]] = 0
     return scribbles
 
-def pick_sk_squares(sk, gt_mask, sk_max_pix=20, sq_size=20, sq_pix_range=(10,40), scribble_width=1, print_details=False):
+def pick_sk_squares(sk, gt_mask, sk_max_pix=20, sq_size=20, sq_pix_range=(10,40), scribble_width=1, print_details=True):
     '''
     Pick random squares from the skeleton.
     Input:
@@ -325,7 +325,7 @@ def pick_sk_squares(sk, gt_mask, sk_max_pix=20, sq_size=20, sq_pix_range=(10,40)
     pix_in_sk = np.sum(sk)
     idx_step = 1
     # Get the coordinates of the skeleton, using steps of idx_step
-    sk_coordinates = np.argwhere(sk[::idx_step])
+    sk_coordinates = np.argwhere(sk)[::idx_step]
     num_coords = len(sk_coordinates)
     # Shuffle the coordinates of the skeleton to loop over them in a random order
     np.random.shuffle(sk_coordinates)
@@ -460,7 +460,7 @@ def get_square(mask, coord, sq_size=20):
     square_mask[coord[0]-red[0]:coord[0]+inc, coord[1]-red[1]:coord[1]+inc] = mask[coord[0]-red[0]:coord[0]+inc, coord[1]-red[1]:coord[1]+inc]
     return square_mask
 
-def create_lines(sk, gt_mask, lines_max_pix=20, line_pix_range=(10, 40), scribble_width=1, line_crop=0, print_details=False):
+def create_lines(sk, gt_mask, lines_max_pix=20, line_pix_range=(10, 40), scribble_width=1, line_crop=2, print_details=True):
     '''
     Create lines leading from a skeleton to the edge of the mask.
     Input:
@@ -480,7 +480,7 @@ def create_lines(sk, gt_mask, lines_max_pix=20, line_pix_range=(10, 40), scribbl
     # Make sure to take at least a certain amount of positions on the skeleton (to avoid too few lines)
     idx_step = min(idx_step, scribble_width + int(np.ceil(pix_in_sk/250))) # 1
     # Get the coordinates of the skeleton, using steps of idx_step
-    sk_coordinates = np.argwhere(sk[::idx_step])
+    sk_coordinates = np.argwhere(sk)[::idx_step]
     num_coords = len(sk_coordinates)
     # Shuffle the coordinates of the skeleton to loop over them in a random order
     np.random.shuffle(sk_coordinates)
@@ -538,7 +538,7 @@ def create_lines(sk, gt_mask, lines_max_pix=20, line_pix_range=(10, 40), scribbl
         print("--- Done sampling lines: avg_length_tried", avg_length_tried)
     return all_lines, tried_lines
 
-def create_lines_optim(sk, gt_mask, lines_max_pix=20, lines_margin=0.75, line_pix_range=(10, 40), scribble_width=1, init_line_crop=0, print_steps=False):
+def create_lines_optim(sk, gt_mask, lines_max_pix=20, lines_margin=0.75, line_pix_range=(10, 40), scribble_width=1, init_line_crop=2, print_steps=False):
     '''
     Create lines leading from a skeleton to the edge of the mask. Use the base function and adjust the parameters if no lines were added.
     Input:
@@ -570,7 +570,7 @@ def create_lines_optim(sk, gt_mask, lines_max_pix=20, lines_margin=0.75, line_pi
             if print_steps:
                 print("         Adjusting line range to", line_pix_range)
         # If this did not work (which generally means the lines are longer than the lines_max_pix), shorten the lines by increasing the lines crop
-        elif line_crop < max(gt_mask.shape) / 2 and avg_length_tried > 0:
+        elif (line_crop < max(gt_mask.shape) / 2) and (avg_length_tried > 0):
             # If the average pixels of the lines tried ~ (len * width) in the last run is still far from the lines_max_pix_left, increase the lines crop by a larger amount
             dil_pix_tried = avg_length_tried * scribble_width + (scribble_width-1) * scribble_width
             if dil_pix_tried > lines_max_pix_left * 5:
@@ -618,7 +618,7 @@ def get_lines_stats(line_list):
     avg_length = np.mean(line_lengths)
     return avg_length, min_length, max_length, lines_tot_pix, num_lines
 
-def get_line(coord, gt_mask, line_crop=0):
+def get_line(coord, gt_mask, line_crop=2):
     '''
     Take a point on the skeleton (= True in the mask) and draw a line to the nearest edge point of the ground truth mask.
     Input:
