@@ -308,7 +308,7 @@ def reduce_scribble(scribbles, max_pix):
         scribbles[scribble_coord[0][max_pix:], scribble_coord[1][max_pix:]] = 0
     return scribbles
 
-def pick_sk_squares(sk, gt_mask, sk_max_pix=20, sq_size=20, sq_pix_range=(10,40), scribble_width=1, print_details=True):
+def pick_sk_squares(sk, gt_mask, sk_max_pix=20, sq_size=20, sq_pix_range=(10,40), scribble_width=1, print_details=False):
     '''
     Pick random squares from the skeleton.
     Input:
@@ -460,7 +460,7 @@ def get_square(mask, coord, sq_size=20):
     square_mask[coord[0]-red[0]:coord[0]+inc, coord[1]-red[1]:coord[1]+inc] = mask[coord[0]-red[0]:coord[0]+inc, coord[1]-red[1]:coord[1]+inc]
     return square_mask
 
-def create_lines(sk, gt_mask, lines_max_pix=20, line_pix_range=(10, 40), scribble_width=1, line_crop=2, print_details=True):
+def create_lines(sk, gt_mask, lines_max_pix=20, line_pix_range=(10, 40), scribble_width=1, line_crop=2, print_details=False):
     '''
     Create lines leading from a skeleton to the edge of the mask.
     Input:
