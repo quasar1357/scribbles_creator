@@ -259,7 +259,7 @@ def scribble_class(ground_truth, class_val, scribble_width=1, sk_max_perc=0.05, 
 
     # Define the scribble type to use
     if mode == "lines": class_scribble_mask = lines
-    elif mode == "prim_sk": prim_sk_squares
+    elif mode == "prim_sk": class_scribble_mask = prim_sk_squares
     elif mode == "sec_sk": class_scribble_mask = sec_sk_squares
     elif mode == "both_sk": class_scribble_mask = both_sk_squares
     elif mode == "all": class_scribble_mask = lines_and_squares
@@ -453,10 +453,10 @@ def get_square(mask, coord, sq_size=20):
     # Create an empty image to draw the square on
     square_mask = np.zeros_like(mask)
     # Draw the square on the image
-    red = int(np.floor(sq_size/2))
+    red = int(np.ceil(sq_size/2))
     # Ensure that the square does not exceed the mask
     red = [min(red, coord[0]), min(red, coord[1])]
-    inc = int(np.ceil(sq_size/2)) # Here, the index can exceed the mask because slicing will stop at the end of the mask
+    inc = int(np.floor(sq_size/2)) # Here, the index can exceed the mask because slicing will stop at the end of the mask
     square_mask[coord[0]-red[0]:coord[0]+inc, coord[1]-red[1]:coord[1]+inc] = mask[coord[0]-red[0]:coord[0]+inc, coord[1]-red[1]:coord[1]+inc]
     return square_mask
 
