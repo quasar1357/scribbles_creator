@@ -11,7 +11,7 @@ def create_even_scribbles(ground_truth, max_perc=0.2, margin=0.75, rel_scribble_
         ground_truth (numpy array): the fully annotated image
         max_perc (float): the maximum percentage of pixels that should be picked (from skeletons and lines)
         margin (float): the margin for minimum nr. pixels that should be picked, as a proportion of the pixels given by max_perc (default: 0.75)
-        rel_scribble_len (int/bool): length of the single scribbles relative to pixel dimensions, i.e. the number of scribbles that would fit the image (empirical default value: 20/(max_perc**0.25))        mode (str): the scribble types to use (lines, prim_sk, sec_sk, both_sk, all)
+        rel_scribble_len (int/bool): length of the single scribbles relative to pixel dimensions, i.e. the number of scribbles that would fit the image (empirical default value: 20/(max_perc**0.25))
         scribble_width (int): the width of the individual scribbles
         mode (str): the scribble types to use (lines, prim_sk, sec_sk, both_sk, all)
         class_dist (str or float): the distribution of the classes in the ground truth: relative (keep % annot for each class), even (same num pix per class), or balanced (mean of relative and even); can also be given as a float between 0 and 1 for a linear interpolation between even and relative (1=even)
@@ -28,6 +28,9 @@ def create_even_scribbles(ground_truth, max_perc=0.2, margin=0.75, rel_scribble_
     if not rel_scribble_len: rel_scribble_len = 20/(max_perc**0.25)
     # The square size is calculated by the number of pixels that would fit into the dimensions of the image
     sq_size = (ground_truth.shape[0] * ground_truth.shape[1] // rel_scribble_len**2) ** 0.5
+    # Make sure the square is not bigger than the image
+    sq_size = min(sq_size, ground_truth.shape[0], ground_truth.shape[1])
+    # Make sure the square is an integer
     sq_size = int(sq_size)
 
     if print_steps:
@@ -150,7 +153,6 @@ def scribble_class(ground_truth, class_val, scribble_width=1, sk_max_perc=0.05, 
 
     # Generate the primary and secondary skeleton for the class in this slice
     prim_sk, sec_sk = double_sk_class(gt_class_mask)
-
     # Check if a skeleton was created, raise an error if not
     if np.sum(prim_sk) == 0:
         raise ValueError(f"No skeleton was created for class {class_val}.")
@@ -321,8 +323,11 @@ def pick_sk_squares(sk, gt_mask, sk_max_pix=20, sq_size=20, sq_pix_range=(10,40)
         all_squares (numpy array): the mask of all squares
     '''
     pix_in_sk = np.sum(sk)
+    idx_step = 1
+    # Get the coordinates of the skeleton, using steps of idx_step
+    sk_coordinates = np.argwhere(sk[::idx_step])
+    num_coords = len(sk_coordinates)
     # Shuffle the coordinates of the skeleton to loop over them in a random order
-    sk_coordinates = np.argwhere(sk)
     np.random.shuffle(sk_coordinates)
     # Create a dilated version of the skeleton to pick the squares from
     sk_dilated = binary_dilation(sk, square(scribble_width))
@@ -332,20 +337,20 @@ def pick_sk_squares(sk, gt_mask, sk_max_pix=20, sq_size=20, sq_pix_range=(10,40)
     all_squares = np.zeros_like(sk_dilated, dtype=np.bool8)
     added_pix = 0
     idx = 0
-    idx_step = 1
     overshoots = 0
     if print_details:
-        print("--- Sampling squares: pix_in_sk", pix_in_sk, "indx_step", idx_step)
+        print("--- Sampling squares: pix_in_sk", pix_in_sk, "indx_step", idx_step, "num_coords", num_coords)
     # Loop until the total number of pixels in all squares approaches the threshold or the end of all pixels in the skeleton is reached
-    while overshoots < 100 and idx < pix_in_sk:
+    while overshoots < 100 and idx < num_coords:
         # Pick a random square from the skeleton (note that the coordinates were shuffled above)
         current_coordinate = sk_coordinates[idx]
-        idx += idx_step
+        idx += 1
         sk_square = get_square(sk_dilated, current_coordinate, sq_size)
         pix_in_sq = np.sum(sk_square)
-        future_total = added_pix + pix_in_sq
+        future_all_squares = np.logical_or(all_squares, sk_square)
+        future_total = np.sum(future_all_squares)
         if print_details:
-            print(f"---    current_coordinate: {current_coordinate} | added_pix (before): {added_pix}, pix_in_square: {pix_in_sq}, future_total: {future_total}")
+            print(f"---    current_coordinate: {current_coordinate} | added_pix (before): {added_pix}, pix_in_square: {pix_in_sq}, new pix: {future_total-added_pix}, future_total: {future_total}")
         # If the square would push the total number of pixels in all squares above the maximum, skip it and count the overshoot
         if future_total > sk_max_pix:
             if print_details:
@@ -359,8 +364,8 @@ def pick_sk_squares(sk, gt_mask, sk_max_pix=20, sq_size=20, sq_pix_range=(10,40)
             continue
         # If the square is valid, add it to the mask of all squares and update the total number of pixels
         else:
-            all_squares = np.logical_or(all_squares, sk_square)
-            added_pix = np.sum(all_squares)
+            all_squares = future_all_squares
+            added_pix = future_total
         # If we have reached the goal maximum number of pixels, we can stop the loop, since no improvement is possible
         if added_pix == int(sk_max_pix):
             if print_details:
@@ -389,18 +394,25 @@ def pick_sk_squares_optim(sk, gt_mask, sk_max_pix=20, sk_margin=0.75, sq_size=20
     Output:
         squares (numpy array): the mask of all squares
     '''
-    # For checking if all pixels were added: Create a dilated version of the skeleton (same as the one that the squares are picked from)
+    # For checking how many pixels can be sampled max.: Create a dilated version of the skeleton (same as the one that the squares are picked from)
     sk_dilated = binary_dilation(sk, square(scribble_width))
     # Ensure all pixels of the dilated skeleton are within the mask
     sk_dilated = np.logical_and(sk_dilated, gt_mask)
-    # Sample squares from the skeleton
-    squares = pick_sk_squares(sk, gt_mask, sk_max_pix, sq_size, sq_pix_range, scribble_width)
-    added_pix = np.sum(squares)
+    num_pix_dil = np.sum(sk_dilated)
+    # If there are too little pixels in the dilated skeleton, raise a warning and return the entire skeleton
+    if num_pix_dil <= sk_max_pix:
+        print(f"      NOTE: All pixels in the skeleton were added ({num_pix_dil}).")
+        squares = sk_dilated
+        added_pix = np.sum(squares)
+    else:
+        # Sample squares from the skeleton
+        squares = pick_sk_squares(sk, gt_mask, sk_max_pix, sq_size, sq_pix_range, scribble_width)
+        added_pix = np.sum(squares)
     # If not enough squares were added, try again with smaller squares and a range starting at a lower value (allowing fewer pixels in a square)
     # NOTE: We check at least for 1 pixel, since otherwise we would allow for empty scribbles; on the other hand we take floor, to ensure it cannot be expected to be above the allowed maximum
     while np.all((added_pix < max(1, np.floor(sk_max_pix * sk_margin)), # Stop if the required minimum number of pixels was added
                   sq_size > scribble_width, # Do not reduce the square size below scribble_width
-                  added_pix < np.sum(sk_dilated))): # Stop if all pixels in the dilated skeleton were added (no further improvement possible)
+                  added_pix < np.sum(sk_dilated))): # Skip if all pixels in the dilated skeleton were added
         # Reduce the square size
         diff_to_width = sq_size - scribble_width
         sq_size = scribble_width + diff_to_width//2
@@ -414,9 +426,11 @@ def pick_sk_squares_optim(sk, gt_mask, sk_max_pix=20, sk_margin=0.75, sq_size=20
             print("         Adjusting square size and range to", sq_size, sq_pix_range)
         # Sample new squares with the adjusted parameters and try again; add them to the squares
         sk_max_pix_left = sk_max_pix - added_pix
+        # We only need to draw squares around the pixels that are still missing
+        sk_left = np.logical_and(sk, np.logical_not(squares))
         if print_steps:
             print(f"         Sampling skeleton squares - sk_max_pix_left: {sk_max_pix_left}")
-        new_squares = pick_sk_squares(sk, gt_mask, sk_max_pix_left, sq_size, sq_pix_range, scribble_width)
+        new_squares = pick_sk_squares(sk_left, gt_mask, sk_max_pix_left, sq_size, sq_pix_range, scribble_width)
         squares = np.logical_or(squares, new_squares)
         added_pix = np.sum(squares)
     # If we have finished looping because we reached the limit of what we can sample, raise a warning if too little squares were added or an error if no squares were added
@@ -424,9 +438,6 @@ def pick_sk_squares_optim(sk, gt_mask, sk_max_pix=20, sk_margin=0.75, sq_size=20
         print("      ERROR: No squares were added!")
     elif added_pix < max(1, np.floor(sk_max_pix * sk_margin)):
         print(f"      WARNING: It was not possible to sample {sk_margin * 100}% of the requested pixels. Only {added_pix} pixels in squares were added!")
-    # Compare the number of pixels in the skeleton and the number of pixels in the squares, report if all pixels were added
-    if added_pix == np.sum(sk_dilated):
-        print("      NOTE: All pixels in the skeleton were added.")
     return squares
 
 def get_square(mask, coord, sq_size=20):
@@ -443,12 +454,13 @@ def get_square(mask, coord, sq_size=20):
     square_mask = np.zeros_like(mask)
     # Draw the square on the image
     red = int(np.floor(sq_size/2))
-    red = min(red, coord[0]) # Ensure that the square does not exceed the mask
+    # Ensure that the square does not exceed the mask
+    red = [min(red, coord[0]), min(red, coord[1])]
     inc = int(np.ceil(sq_size/2)) # Here, the index can exceed the mask because slicing will stop at the end of the mask
-    square_mask[coord[0]-red:coord[0]+inc, coord[1]-red:coord[1]+inc] = mask[coord[0]-red:coord[0]+inc, coord[1]-red:coord[1]+inc]
+    square_mask[coord[0]-red[0]:coord[0]+inc, coord[1]-red[1]:coord[1]+inc] = mask[coord[0]-red[0]:coord[0]+inc, coord[1]-red[1]:coord[1]+inc]
     return square_mask
 
-def create_lines(sk, gt_mask, lines_max_pix=20, line_pix_range=(10, 40), scribble_width=1, line_crop=2, print_details=False):
+def create_lines(sk, gt_mask, lines_max_pix=20, line_pix_range=(10, 40), scribble_width=1, line_crop=0, print_details=False):
     '''
     Create lines leading from a skeleton to the edge of the mask.
     Input:
@@ -463,35 +475,39 @@ def create_lines(sk, gt_mask, lines_max_pix=20, line_pix_range=(10, 40), scribbl
         all_lines (numpy array): the mask of all lines
     '''
     pix_in_sk = np.sum(sk)
+    # Make sure the lines are not sampled too densely
+    idx_step = scribble_width + 2
+    # Make sure to take at least a certain amount of positions on the skeleton (to avoid too few lines)
+    idx_step = min(idx_step, scribble_width + int(np.ceil(pix_in_sk/250))) # 1
+    # Get the coordinates of the skeleton, using steps of idx_step
+    sk_coordinates = np.argwhere(sk[::idx_step])
+    num_coords = len(sk_coordinates)
     # Shuffle the coordinates of the skeleton to loop over them in a random order
-    sk_coordinates = np.argwhere(sk)
     np.random.shuffle(sk_coordinates)
     # Initialize the mask of all picked lines and variables for the loop
     all_lines = np.zeros_like(gt_mask, dtype=np.bool8)
     added_pix = 0
     idx = 0
-    idx_step = scribble_width + 3
-    # Make sure to take at least a certain amount of positions on the skeleton (to avoid too few lines)
-    idx_step = min(idx_step, scribble_width + int(np.ceil(pix_in_sk/250))) # 1
     overshoots = 0
     tried_lines = []
     if print_details:
-        print("--- Sampling lines: pix_in_sk", pix_in_sk, "indx_step", idx_step, "line_crop", line_crop)
+        print("--- Sampling lines: pix_in_sk", pix_in_sk, "indx_step", idx_step, "num_coords", num_coords, "line_crop", line_crop)
     # Loop until the pixels in all lines approach the threshold (keeps overshooting) or the end of all pixels in the skeleton is reached
-    while overshoots < 100 and idx < pix_in_sk:
+    while overshoots < 100 and idx < num_coords:
         # Draw a line from the skeleton to the edge of the mask
         current_coordinate = sk_coordinates[idx]
-        idx += idx_step
+        idx += 1
         single_pix_line = get_line(current_coordinate, gt_mask, line_crop=line_crop)
         tried_lines.append(single_pix_line)
         # Dilate the line to the scribble width
         line = binary_dilation(single_pix_line, square(scribble_width))
-        # Ensure all pixels of the dilated line are within the mask
+        # Ensure all pixels of the (dilated )line are within the mask
         line = np.logical_and(line, gt_mask)
         pix_in_line = np.sum(line)
-        future_total = added_pix + pix_in_line
+        future_all_lines = np.logical_or(all_lines, line)
+        future_total = np.sum(future_all_lines)
         if print_details:
-            print(f"---    current_coordinate: {current_coordinate}, line {(np.argwhere(single_pix_line)[0], np.argwhere(single_pix_line)[-1]) if np.sum(single_pix_line) > 0 else 'empty'} | added_pix (before): {added_pix}, pix_in_line: {pix_in_line}, future_total: {future_total}")
+            print(f"---    current_coordinate: {current_coordinate}, line {(np.argwhere(single_pix_line)[0], np.argwhere(single_pix_line)[-1]) if np.sum(single_pix_line) > 0 else 'empty'} | added_pix (before): {added_pix}, pix_in_line: {pix_in_line}, new pix: {future_total-added_pix}, future_total: {future_total}")
         # If the line would push the total number of pixels on lines above the maximum, skip it and count the overshoot
         if future_total > lines_max_pix:
             if print_details:
@@ -505,8 +521,8 @@ def create_lines(sk, gt_mask, lines_max_pix=20, line_pix_range=(10, 40), scribbl
             continue
         # If the line is valid, add it to the mask of all lines and update the total number of pixels
         else:
-            all_lines = np.logical_or(all_lines, line)
-            added_pix = np.sum(all_lines)
+            all_lines = future_all_lines
+            added_pix = future_total
         # If we have reached the goal maximum number of pixels, we can stop the loop, since no improvement is possible
         if added_pix == int(lines_max_pix):
             if print_details:
@@ -522,7 +538,7 @@ def create_lines(sk, gt_mask, lines_max_pix=20, line_pix_range=(10, 40), scribbl
         print("--- Done sampling lines: avg_length_tried", avg_length_tried)
     return all_lines, tried_lines
 
-def create_lines_optim(sk, gt_mask, lines_max_pix=20, lines_margin=0.75, line_pix_range=(10, 40), scribble_width=1, init_line_crop=2, print_steps=False):
+def create_lines_optim(sk, gt_mask, lines_max_pix=20, lines_margin=0.75, line_pix_range=(10, 40), scribble_width=1, init_line_crop=0, print_steps=False):
     '''
     Create lines leading from a skeleton to the edge of the mask. Use the base function and adjust the parameters if no lines were added.
     Input:
@@ -573,7 +589,7 @@ def create_lines_optim(sk, gt_mask, lines_max_pix=20, lines_margin=0.75, line_pi
             if print_steps:
                 print("         Adjusting line_crop to", line_crop)
         else:
-            print("         NOTE: No more options to adjust the parameters.")
+            print("      NOTE: No more options to adjust the parameters.")
             break
         # Create new lines with the adjusted parameters and try again; add them to the lines
         lines_max_pix_left = lines_max_pix - added_pix
@@ -586,9 +602,9 @@ def create_lines_optim(sk, gt_mask, lines_max_pix=20, lines_margin=0.75, line_pi
 
     # If we have finished looping because we reached the limit of what we can sample, raise a warning if too little lines were added or an error if no lines were added
     if added_pix == 0:
-        print("   ERROR: No lines were added!")
+        print("      ERROR: No lines were added!")
     elif added_pix < max(1, np.floor(lines_max_pix * lines_margin)):
-        print(f"   WARNING: It was not possible to sample {lines_margin * 100}% of the requested pixels. Only {added_pix} pixels in lines were added!")
+        print(f"      WARNING: It was not possible to sample {lines_margin * 100}% of the requested pixels. Only {added_pix} pixels in lines were added!")
 
     return lines
 
@@ -602,7 +618,7 @@ def get_lines_stats(line_list):
     avg_length = np.mean(line_lengths)
     return avg_length, min_length, max_length, lines_tot_pix, num_lines
 
-def get_line(coord, gt_mask, line_crop=2):
+def get_line(coord, gt_mask, line_crop=0):
     '''
     Take a point on the skeleton (= True in the mask) and draw a line to the nearest edge point of the ground truth mask.
     Input:
