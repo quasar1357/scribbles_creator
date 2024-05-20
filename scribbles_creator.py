@@ -493,7 +493,8 @@ def create_lines(sk, gt_mask, lines_max_pix=20, line_pix_range=(10, 40), scribbl
     added_pix = 0
     idx = 0
     overshoots = 0
-    tried_lines = []
+    tried_single_pix_lines = []
+    tried_dilated_lines = []
     if print_details:
         print("--- Sampling lines: pix_in_sk", pix_in_sk, "indx_step", idx_step, "num_coords", num_coords, "line_crop", line_crop)
     # Loop until the pixels in all lines approach the threshold (keeps overshooting) or the end of all pixels in the skeleton is reached
@@ -502,11 +503,12 @@ def create_lines(sk, gt_mask, lines_max_pix=20, line_pix_range=(10, 40), scribbl
         current_coordinate = sk_coordinates[idx]
         idx += 1
         single_pix_line = get_line(current_coordinate, gt_mask, line_crop=line_crop)
-        tried_lines.append(single_pix_line)
+        tried_single_pix_lines.append(single_pix_line)
         # Dilate the line to the scribble width
         line = binary_dilation(single_pix_line, square(scribble_width))
         # Ensure all pixels of the (dilated )line are within the mask
         line = np.logical_and(line, gt_mask)
+        tried_dilated_lines.append(line)
         pix_in_line = np.sum(line)
         future_all_lines = np.logical_or(all_lines, line)
         future_total = np.sum(future_all_lines)
@@ -538,9 +540,10 @@ def create_lines(sk, gt_mask, lines_max_pix=20, line_pix_range=(10, 40), scribbl
                 print("---    the remaining total pixels are too few for a line")
             break
     if print_details:
-        avg_length_tried = get_lines_stats(tried_lines)[0]
-        print("--- Done sampling lines: avg_length_tried", avg_length_tried)
-    return all_lines, tried_lines
+        avg_len_tried, min_len_tried, max_len_tried = get_lines_stats(tried_single_pix_lines)[:3]
+        avg_pix_tried, min_pix_tried, max_pix_tried = get_lines_stats(tried_dilated_lines)[:3]
+        print(f"--- Done sampling lines: avg_len_tried {avg_len_tried:.2f}, min_len_tried {min_len_tried}, max_len_tried {max_len_tried}, avg_pix_tried {avg_pix_tried:.2f}, min_pix_tried {min_pix_tried}, max_pix_tried {max_pix_tried}")
+    return all_lines, tried_single_pix_lines, tried_dilated_lines
 
 def create_lines_optim(sk, gt_mask, lines_max_pix=20, lines_margin=0.75, line_pix_range=(10, 40), scribble_width=1, init_line_crop=2, print_steps=False):
     '''
@@ -558,70 +561,74 @@ def create_lines_optim(sk, gt_mask, lines_max_pix=20, lines_margin=0.75, line_pi
         lines (numpy array): the mask of all lines
     '''
     line_crop = init_line_crop
-    lines, tried_lines = create_lines(sk, gt_mask, lines_max_pix, line_pix_range, scribble_width, line_crop)
-    avg_length_tried = get_lines_stats(tried_lines)[0]
-    added_pix = np.sum(lines)
-    lines_max_pix_left = lines_max_pix - added_pix
+    lines, tried_single_pix_lines, tried_dilated_lines = create_lines(sk, gt_mask, lines_max_pix, line_pix_range, scribble_width, line_crop)
+    avg_len_tried, min_len_tried, max_len_tried = get_lines_stats(tried_single_pix_lines)[:3]
+    avg_pix_tried, min_pix_tried, max_pix_tried = get_lines_stats(tried_dilated_lines)[:3]
+    tot_added_pix = np.sum(lines)
+    lines_max_pix_left = lines_max_pix - tot_added_pix
 
     # If not enough lines were added, try again with adjusted parameters
-    # NOTE: We check at least for 1 pixel, since otherwise we would allow for empty scribbles; on the other hand we take floor, to ensure it cannot be expected to be above the allowed maximum
-    while added_pix < max(1, np.floor(lines_max_pix * lines_margin)):
-        # If the line range is too small, make it larger (especially decreasing the minimum) and try again
-        # NOTE: if the upper bound is still too low, this is not a big deal, because we can instead shorten the lines
-        # NOTE: since the minimum (line_pix_range[0]) is an integer and is checked to be > 1, it will not be reduced to 0
-        if line_pix_range[0] > 1: # or line_pix_range[1] > max(gt_mask.shape) // 2:
-            line_pix_range = (line_pix_range[0]//2, line_pix_range[1] * 2)
-            if print_steps:
-                print("         Adjusting line range to", line_pix_range)
-        # If this did not work (which generally means the lines are longer than the lines_max_pix), shorten the lines by increasing the lines crop
-        elif (line_crop < max(gt_mask.shape) / 2) and (avg_length_tried > 0):
-            # If the average pixels of the lines tried ~ (len * width) in the last run is still far from the lines_max_pix_left, increase the lines crop by a larger amount
-            dil_pix_tried = avg_length_tried * scribble_width #avg_length_tried * scribble_width + (scribble_width-1) * scribble_width
-            if dil_pix_tried > lines_max_pix_left * 5:
-                pix_to_remove = int(np.ceil((dil_pix_tried - lines_max_pix_left) * 0.75))
-                # The crop increase has to be adjusted dependent of the scribble width, since the crop refers to the single pix line (plus there are overhangs on each side)
-                crop_increase = int(pix_to_remove / scribble_width) #int( ( pix_to_remove - (scribble_width-1) * scribble_width ) / scribble_width )
-            # If the average pixels of the lines tried ~ (len * width) in the last run is close to the lines_max_pix_left, increase the lines crop by a smaller amount
+    while tot_added_pix < max(1, np.floor(lines_max_pix * lines_margin)):
+        
+        # If lines are too long, crop them
+        upper_bound = min(line_pix_range[1], lines_max_pix_left)
+        needed_line_len = int(upper_bound / scribble_width)
+        # Lines must be shorter than both the maximum allowed length for a scribble and the maximum number of pixels left in total
+        if avg_pix_tried > upper_bound and avg_len_tried > 0:
+            # If even the minimum tried so far is above the upper bound, crop the lines accordingly
+            if min_pix_tried > upper_bound:
+                crop_increase = min_len_tried - needed_line_len
+            # If the minimum is already below the upper bound, crop the lines to the average, to allow other lines to also fall below the upper bound
             else:
-                # Ensure that the steps are not becoming too large to fit inside the lines_max_pix_left (also considering the scribble_width)
-                needed_line_len = int(lines_max_pix_left / scribble_width) #int( ( lines_max_pix_left - (scribble_width-1) * scribble_width ) / scribble_width )
-                crop_increase = avg_length_tried - needed_line_len
-                # Rather make the crop steps a bit smaller than absolutely necessary
-                crop_increase = int(np.ceil(0.75 * crop_increase))
+                crop_increase = avg_len_tried - needed_line_len
+            # Rather make the crop steps a bit smaller than absolutely necessary, to not overshoot
+            crop_increase = int(np.ceil(0.75 * crop_increase))
             # Increase by at least 1, since otherwise nothing will be changed
             crop_increase = max(1, crop_increase)
             line_crop = line_crop + crop_increase
             if print_steps:
                 print("         Adjusting line_crop to", line_crop)
+        
+        # If lines are too short, allow for shorter lines (we cannot make them longer)
+        elif line_pix_range[0] > 1:
+            if max_pix_tried < line_pix_range[0]:
+                line_pix_range = (max_pix_tried, line_pix_range[1])
+            else:
+                line_pix_range = (line_pix_range[0]//2, line_pix_range[1])
+            if print_steps:
+                print("         Adjusting line_pix_range to", line_pix_range)
         else:
             print("      NOTE: No more options to adjust the parameters.")
             break
+
         # Create new lines with the adjusted parameters and try again; add them to the lines
-        lines_max_pix_left = lines_max_pix - added_pix
         if print_steps:
             print(f"         Sampling lines - lines_max_pix_left: {lines_max_pix_left}")
-        new_lines, tried_lines = create_lines(sk, gt_mask, lines_max_pix_left, line_pix_range, scribble_width, line_crop=line_crop)
-        avg_length_tried = get_lines_stats(tried_lines)[0]
+        new_lines, tried_single_pix_lines, tried_dilated_lines = create_lines(sk, gt_mask, lines_max_pix_left, line_pix_range, scribble_width, line_crop=line_crop)
+        avg_len_tried, min_len_tried, max_len_tried = get_lines_stats(tried_single_pix_lines)[:3]
+        avg_pix_tried, min_pix_tried, max_pix_tried = get_lines_stats(tried_dilated_lines)[:3]
         lines = np.logical_or(lines, new_lines)
-        added_pix = np.sum(lines)
+        tot_added_pix = np.sum(lines)
+        lines_max_pix_left = lines_max_pix - tot_added_pix
 
     # If we have finished looping because we reached the limit of what we can sample, raise a warning if too little lines were added or an error if no lines were added
-    if added_pix == 0:
+    if tot_added_pix == 0:
         print("      ERROR: No lines were added!")
-    elif added_pix < max(1, np.floor(lines_max_pix * lines_margin)):
-        print(f"      WARNING: It was not possible to sample {lines_margin * 100}% of the requested pixels. Only {added_pix} pixels in lines were added!")
+    elif tot_added_pix < max(1, np.floor(lines_max_pix * lines_margin)):
+        print(f"      WARNING: It was not possible to sample {lines_margin * 100}% of the requested pixels. Only {tot_added_pix} pixels in lines were added!")
 
     return lines
 
 def get_lines_stats(line_list):
     '''Take a list of lines (masks) and return statistics of them.'''
-    line_lengths = [np.sum(line) for line in line_list]
-    lines_tot_pix = np.sum(line_lengths)
+    line_pix = [np.sum(line) for line in line_list]
+    lines_tot_pix = np.sum(line_pix)
     num_lines = len(line_list)
-    min_length = np.min(line_lengths)
-    max_length = np.max(line_lengths)
-    avg_length = np.mean(line_lengths)
-    return avg_length, min_length, max_length, lines_tot_pix, num_lines
+    min_pix = np.min(line_pix)
+    min_pix_non_zero = np.min([p for p in line_pix if p != 0])
+    max_pix = np.max(line_pix)
+    avg_pix = np.mean(line_pix)
+    return avg_pix, min_pix, max_pix, lines_tot_pix, num_lines
 
 def get_line(coord, gt_mask, line_crop=2):
     '''

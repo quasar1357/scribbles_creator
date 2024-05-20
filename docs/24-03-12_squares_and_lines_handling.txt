@@ -6,10 +6,11 @@ line/square < min < max_tot < max -->  decrease min --> ok
 
 min < line/square < max < max_tot --> ok
 min < line/square < max_tot < max --> ok
-min < max < line/square < max_tot --> increase max / decrease square --> ok
-min < max < max_tot < line/square --> overshoot! --> decrease line/square
-min <= max_tot < max < line/square --> overshoot! --> decrease line/square
-min <= max_tot < line/square < max --> overshoot! --> decrease line/square
+
+min < max < line/square < max_tot --> increase max / decrease square --> ok		==> no, crop instead
+min < max < max_tot < line/square --> overshoot! --> decrease line/square (= smaller sq, crop lines)
+min <= max_tot < max < line/square --> overshoot! --> decrease line/square (= smaller sq, crop lines)
+min <= max_tot < line/square < max --> overshoot! --> decrease line/square (= smaller sq, crop lines)
 
 max < min --> makes no sense
 max_tot < min --> min will be set to max_tot
