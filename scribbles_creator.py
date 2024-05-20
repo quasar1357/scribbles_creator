@@ -575,13 +575,13 @@ def create_lines_optim(sk, gt_mask, lines_max_pix=20, lines_margin=0.75, line_pi
         needed_line_len = int(upper_bound / scribble_width)
         # Lines must be shorter than both the maximum allowed length for a scribble and the maximum number of pixels left in total
         if avg_pix_tried > upper_bound and avg_len_tried > 0:
-            # If even the minimum tried so far is above the upper bound, crop the lines accordingly
+            # If even the minimum tried so far (and therefore all lines) is above the upper bound, crop the lines accordingly
             if min_pix_tried > upper_bound:
                 crop_increase = min_len_tried - needed_line_len
             # If the minimum is already below the upper bound, crop the lines to the average, to allow other lines to also fall below the upper bound
             else:
                 crop_increase = avg_len_tried - needed_line_len
-            # Rather make the crop steps a bit smaller than absolutely necessary, to not overshoot
+            # Rather make the crop steps a bit smaller than absolutely necessary, to be conservative
             crop_increase = int(np.ceil(0.75 * crop_increase))
             # Increase by at least 1, since otherwise nothing will be changed
             crop_increase = max(1, crop_increase)
@@ -590,9 +590,12 @@ def create_lines_optim(sk, gt_mask, lines_max_pix=20, lines_margin=0.75, line_pi
                 print("         Adjusting line_crop to", line_crop)
         
         # If lines are too short, allow for shorter lines (we cannot make them longer)
-        elif line_pix_range[0] > 1:
+        # NOTE: if the minimum tried (i.e. all lines) is already above the minimum, there is no point in decreasing the minimum; also don't reduce the minimum below 1
+        elif min_pix_tried < line_pix_range[0] > 1:
+            # If all pixels are below the minimum, directly set the allowed minimum to the maximum tried
             if max_pix_tried < line_pix_range[0]:
                 line_pix_range = (max_pix_tried, line_pix_range[1])
+            # Otherwise reduce the minimum iteratively
             else:
                 line_pix_range = (line_pix_range[0]//2, line_pix_range[1])
             if print_steps:
