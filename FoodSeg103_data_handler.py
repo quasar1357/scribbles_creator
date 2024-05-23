@@ -90,6 +90,8 @@ def get_food_img_data(folder_path, img_num, load_scribbles=False, mode="all", bi
     return img_data
 
 def bin_for_file(bin):
+    if bin == "NA":
+        return "NA"
     return str(int(bin*1000)).zfill(5)
 
 

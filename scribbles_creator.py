@@ -461,7 +461,7 @@ def get_square(mask, coord, sq_size=20):
     # Ensure that the square does not exceed the mask
     red = [min(red, coord[0]), min(red, coord[1])]
     inc = int(np.floor(sq_size/2)) # Here, the index can exceed the mask because slicing will stop at the end of the mask
-    square_mask[coord[0]-red[0]:coord[0]+inc, coord[1]-red[1]:coord[1]+inc] = mask[coord[0]-red[0]:coord[0]+inc, coord[1]-red[1]:coord[1]+inc]
+    square_mask[coord[0]-red[0]:coord[0]+inc+1, coord[1]-red[1]:coord[1]+inc+1] = mask[coord[0]-red[0]:coord[0]+inc+1, coord[1]-red[1]:coord[1]+inc+1]
     return square_mask
 
 def create_lines(sk, gt_mask, lines_max_pix=20, line_pix_range=(10, 40), scribble_width=1, line_crop=2, print_details=False):

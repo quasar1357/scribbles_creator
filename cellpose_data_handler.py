@@ -71,6 +71,8 @@ def get_cellpose_img_data(folder_path, img_num, load_img=False, load_gt=False, l
     return img_data
 
 def bin_for_file(bin):
+    if bin == "NA":
+        return "NA"
     return str(int(bin*1000)).zfill(5)
 
 
