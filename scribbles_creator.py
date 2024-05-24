@@ -431,7 +431,8 @@ def pick_sk_squares_optim(sk, gt_mask, sk_max_pix=20, sk_margin=0.75, sq_size=20
         # Sample new squares with the adjusted parameters and try again; add them to the squares
         sk_max_pix_left = sk_max_pix - added_pix
         # We only need to draw squares around the pixels that are still missing
-        sk_left = np.logical_and(sk, np.logical_not(squares))
+        eroded_squares = binary_erosion(squares, square(scribble_width))
+        sk_left = np.logical_and(sk, np.logical_not(eroded_squares))
         if print_steps:
             print(f"         Sampling skeleton squares - sk_max_pix_left: {sk_max_pix_left}")
         new_squares = pick_sk_squares(sk_left, gt_mask, sk_max_pix_left, sq_size, sq_pix_range, scribble_width)
@@ -457,11 +458,15 @@ def get_square(mask, coord, sq_size=20):
     # Create an empty image to draw the square on
     square_mask = np.zeros_like(mask)
     # Draw the square on the image
-    red = int(np.ceil(sq_size/2))
+    red = int(np.floor(sq_size/2))
     # Ensure that the square does not exceed the mask
     red = [min(red, coord[0]), min(red, coord[1])]
-    inc = int(np.floor(sq_size/2)) # Here, the index can exceed the mask because slicing will stop at the end of the mask
-    square_mask[coord[0]-red[0]:coord[0]+inc+1, coord[1]-red[1]:coord[1]+inc+1] = mask[coord[0]-red[0]:coord[0]+inc+1, coord[1]-red[1]:coord[1]+inc+1]
+    inc = int(np.ceil(sq_size/2)) # Here, the index can exceed the mask because slicing will stop at the end of the mask
+    sq_x_low = coord[0]-red[0]
+    sq_x_up = coord[0]+inc
+    sq_y_low = coord[1]-red[1]
+    sq_y_up = coord[1]+inc
+    square_mask[sq_x_low:sq_x_up, sq_y_low:sq_y_up] = mask[sq_x_low:sq_x_up, sq_y_low:sq_y_up]
     return square_mask
 
 def create_lines(sk, gt_mask, lines_max_pix=20, line_pix_range=(10, 40), scribble_width=1, line_crop=2, print_details=False):
