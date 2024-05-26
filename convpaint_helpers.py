@@ -28,20 +28,16 @@ def selfpred_convpaint(image, labels, layer_list=[0], scalings=[1,2], model="vgg
     # Register the hooks for the selected layers
     model.register_hooks(selected_layers=layers)
     # Get the features and targets
-    features, targets = get_features_current_layers(
+    features_annot, targets = get_features_current_layers(
         model=model, image=image, annotations=labels, scalings=scalings,
         order=1, use_min_features=False, image_downsample=1)
 
     # Train the classifier
-    if random_state is None:
-        random_forest = train_classifier(features, targets)
-    else:
-        # Do RF training manually (copied from convpaint utils) to have access to seed/random_state:
-        X, X_test, y, y_test = train_test_split(features, targets,
-                                                test_size=0.2,
-                                                random_state=42)
-        random_forest = RandomForestClassifier(n_estimators=100, random_state = random_state)
-        random_forest.fit(X, y)
+    # split_dataset = train_test_split(features, targets, test_size=0.2, random_state=42)
+    # features_train, features_test, labels_train, labels_test = split_dataset
+    features_train, labels_train = features_annot, targets
+    random_forest = RandomForestClassifier(n_estimators=100, random_state=random_state)
+    random_forest.fit(features_train, labels_train)
 
     # Predict on the image
     predicted = predict_image(
