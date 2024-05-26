@@ -33,7 +33,7 @@ def selfpred_convpaint(image, labels, layer_list=[0], scalings=[1,2], model="vgg
         order=1, use_min_features=False, image_downsample=1)
 
     # Train the classifier
-    # split_dataset = train_test_split(features, targets, test_size=0.2, random_state=42)
+    # split_dataset = train_test_split(features_annot, targets, test_size=0.2, random_state=42)
     # features_train, features_test, labels_train, labels_test = split_dataset
     features_train, labels_train = features_annot, targets
     random_forest = RandomForestClassifier(n_estimators=100, random_state=random_state)
