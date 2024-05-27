@@ -1,6 +1,7 @@
 from datasets import load_dataset
 import numpy as np
 import pandas as pd
+import re
 from PIL import Image
 import napari
 
@@ -251,14 +252,31 @@ def analyse_food_single_file(ground_truth, folder_path, img_num, mode="all", bin
     labels = img_data["scribbles"]
     prediction = img_data["pred"]
 
+    # Add columns for the layers and scalings (extracted from the prediction type tag)
+    if "convpaint" in pred_tag and pred_tag != "convpaint":
+        l_tag = re.split("_", pred_tag)[1]
+        layers = l_tag[2:]
+        # layers = re.split("-", l_tag)[1:]
+        s_tag = re.split("_", pred_tag)[2]
+        scalings = s_tag[2:]
+        # scalings = re.split("-", s_tag)[1:]
+    else:
+        layers = None
+        scalings = None
+    # Add prediction type
+    if pred_tag == 'convpaint_l-0_s-1-2': pred_type = 'convpaint (default)'
+    if pred_tag[:10] == 'convpaint_': pred_type = 'convpaint' # If there is still an underline (i.e. it wasn't renamed to default), just call it "convpaint" (layers and scalings are already in the columns)
+    if pred_tag == 'ilastik': pred_type = 'classical filters'
+    if pred_tag == 'dino': pred_type = 'DINOv2'
+
     # Calculate stats
-    class_pix_gt = [np.sum(ground_truth == val) for val in np.unique(ground_truth)]
-    max_class_pix_gt = np.max(class_pix_gt)
-    min_class_pix_gt = np.min(class_pix_gt)
-    pix_labelled = np.sum(labels>0)
-    class_pix_labelled = [np.sum(labels == val) for val in np.unique(labels)]
-    max_class_pix_labelled = np.max(class_pix_labelled)
-    min_class_pix_labelled = np.min(class_pix_labelled)
+    class_pix_gt = [np.sum(ground_truth == val) for val in np.unique(ground_truth) if val > 0] # There shouldn't be any 0s in the ground truth, but we exclude them just in case
+    max_class_pix_gt = max(class_pix_gt)
+    min_class_pix_gt = min(class_pix_gt)
+    pix_labelled = np.sum(labels > 0)
+    class_pix_labelled = [np.sum(labels == val) for val in np.unique(labels) if val > 0]
+    max_class_pix_labelled = max(class_pix_labelled)
+    min_class_pix_labelled = min(class_pix_labelled)
     pix_in_img = (labels.shape[0] * labels.shape[1])
     perc_labelled = pix_labelled / pix_in_img * 100
     acc, mPrec, mRecall, mIoU, mF1 = single_img_stats(prediction, ground_truth)
@@ -274,15 +292,18 @@ def analyse_food_single_file(ground_truth, folder_path, img_num, mode="all", bin
         v.add_labels(prediction)
 
     res = pd.DataFrame({'img_num': img_num,
-                        'prediction type': pred_tag,
+                        'prediction tag': pred_tag,
+                        'prediction type': pred_type,
+                        'layers': layers,
+                        'scalings': scalings,
                         'scribbles mode': mode,
                         'scribbles bin': bin,
                         'suffix': suff,
-                        'max_class_pix_gt': max_class_pix_gt,
                         'min_class_pix_gt': min_class_pix_gt,
+                        'max_class_pix_gt': max_class_pix_gt,
                         'pix_labelled': pix_labelled,
-                        'max_class_pix_labelled': max_class_pix_labelled,
                         'min_class_pix_labelled': min_class_pix_labelled,
+                        'max_class_pix_labelled': max_class_pix_labelled,
                         'pix_in_img': pix_in_img,
                         'perc. labelled': perc_labelled,
                         'accuracy': acc,
