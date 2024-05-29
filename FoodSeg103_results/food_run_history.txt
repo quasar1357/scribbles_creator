@@ -12,3 +12,5 @@ run04	New run together with cellpose
 	2 analyses: second one with new metrics...
 
 run05	After fixing the above issues, dilation inside loop, and edge cases handled properly
+
+run06	Use scribbles of run05 (copied over, named run06 but in fact from run05), but convpaint prediction with all features (not splitting off eval/test...)
