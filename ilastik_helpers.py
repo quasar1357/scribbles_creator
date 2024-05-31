@@ -5,7 +5,6 @@ from ilastik.napari.filters import (FilterSet,
                                     DifferenceOfGaussians,
                                     StructureTensorEigenvalues,
                                     HessianOfGaussianEigenvalues)
-from ilastik.napari.plugin import _pixel_classification
 import itertools
 from sparse import COO
 from ilastik.napari.classifier import NDSparseClassifier
@@ -13,90 +12,84 @@ from sklearn.ensemble import RandomForestClassifier
 import numpy as np
 
 # Define the filter set and scales
-filter_list = (Gaussian,
+FILTER_LIST = (Gaussian,
                LaplacianOfGaussian,
                GaussianGradientMagnitude,
                DifferenceOfGaussians,
                StructureTensorEigenvalues,
                HessianOfGaussianEigenvalues)
-scale_list = (0.3, 0.7, 1.0, 1.6, 3.5, 5.0, 10.0)
-
-# Generate all combinations of filter_list and scale_list
-all_combinations = list(itertools.product(range(len(filter_list)), range(len(scale_list))))
+SCALE_LIST = (0.3, 0.7, 1.0, 1.6, 3.5, 5.0, 10.0)
+# Generate all combinations of FILTER_LIST and SCALE_LIST
+ALL_FILTER_SCALING_COMBOS = list(itertools.product(range(len(FILTER_LIST)), range(len(SCALE_LIST))))
 # Create a FilterSet with all combinations
-filter_set = FilterSet(
-    filters = tuple(filter_list[row](scale_list[col]) for row, col in sorted(all_combinations))
-    )
+FILTERS = tuple(FILTER_LIST[row](SCALE_LIST[col]) for row, col in sorted(ALL_FILTER_SCALING_COMBOS))
+FILTER_SET = FilterSet(filters=FILTERS)
 
-
-
-def pixel_classification_ilastik(image, labels, filter_set=filter_set, random_state=None):
+def extract_ila_features_multichannel(image, filter_set=FILTER_SET):
     """
-    Pixel classification with Ilastik for single channel images.
-    INPUT:
-        image (np.ndarray): image to predict on; shape (H, W)
-        labels (np.ndarray): labels for the image; shape (H, W), same dimensions as image
-        filter_set (FilterSet from ilastik.napari.filters): filter set to use for feature extraction
-        random_state (int): random state for the random forest classifier
-    OUTPUT:
-        labels_predicted (np.ndarray): predicted labels; shape (H, W)
-    """
-    feature_map = filter_set.transform(np.asarray(image.data))
-    sparse_labels = COO.from_numpy(np.asarray(labels.data))
-    clf = NDSparseClassifier(RandomForestClassifier(random_state = random_state))
-    clf.fit(feature_map, sparse_labels)
-    prediction = np.moveaxis(clf.predict_proba(feature_map), -1, 0)
-    labels_predicted = np.zeros_like(prediction[0].astype(np.uint8))
-    for class_label in range(0, prediction.shape[0]):
-        labels_predicted[prediction[class_label] > 0.5] = class_label+1
-    return labels_predicted
-
-
-def pixel_classification_ilastik_multichannel(image, labels, filter_set=filter_set, random_state=None):
-    """
-    Pixel classification with Ilastik for multichannel images.
+    Feature Extraction with Ilastik for multichannel images. Concatenates the feature maps of each channel.
     INPUT:
         image (np.ndarray): image to predict on; shape (C, H, W) or (H, W, C)
-        labels (np.ndarray): labels for the image; shape (H, W), same dimensions as image
         filter_set (FilterSet from ilastik.napari.filters): filter set to use for feature extraction
-        random_state (int): random state for the random forest classifier
     OUTPUT:
-        labels_predicted (np.ndarray): predicted labels; shape (H, W)
+        features (np.ndarray): feature map (H, W, C) with C being the number of features per pixel
     """
+    # Ensure (H, W, C)
     if len(image.shape) == 3 and image.shape[0] < 4:
-        image = np.moveaxis(image, 0, -1) # Ilastik expects (H, W, C)
+        image = np.moveaxis(image, 0, -1)
+    # Loop over channels, extract features and concatenate them
     for c in range(image.data.shape[2]):
-        feature_map = filter_set.transform(np.asarray(image[:,:,c]))
+        channel_feature_map = filter_set.transform(np.asarray(image[:,:,c]))
         if c == 0:
-            feature_map_all = feature_map
+            feature_map = channel_feature_map
         else:
-            feature_map_all = np.concatenate((feature_map_all, feature_map), axis=2)
-    # print(feature_map_all.shape)
-    sparse_labels = COO.from_numpy(labels)
-    clf = NDSparseClassifier(RandomForestClassifier(random_state = random_state))
-    clf.fit(feature_map_all, sparse_labels)
-    proba = clf.predict_proba(feature_map_all)
+            feature_map = np.concatenate((feature_map, channel_feature_map), axis=2)
+    return feature_map
+
+def ila_pred_from_features(feature_map, labels, random_state=None):
+    '''
+    Predicts labels with Ilastik from a feature map.
+    INPUT:
+        feature_map (np.ndarray): feature map; shape (H, W, C) with C being the number of features per pixel
+        labels (np.ndarray): labels for the image; shape (H, W), same dimensions as image
+        random_state (int): random state for the random forest classifier
+    '''
+    # Fit the classifier
+    sparse_labels = COO.from_numpy(labels) # convert to sparse format (incl. coordinates)
+    clf = NDSparseClassifier(RandomForestClassifier(random_state=random_state))
+    clf.fit(feature_map, sparse_labels)
+    # Get the prediction probabilities
+    proba = clf.predict_proba(feature_map)
     prediction = np.moveaxis(proba, -1, 0)
+    # Assign the class with the highest probability to each pixel
     labels_predicted = np.zeros_like(prediction[0].astype(np.uint8))
+    max_probs = np.zeros_like(prediction[0])
     for class_label in range(0, prediction.shape[0]):
-        labels_predicted[prediction[class_label] > 0.5] = class_label+1
+        # Where the probability for the current class is higher than the previous maximum, assign the class label
+        labels_predicted[prediction[class_label] > max_probs] = class_label+1
+        # Update the maximum probability
+        max_probs = np.maximum(prediction[class_label], max_probs)
     return labels_predicted
 
 
-def selfpred_ilastik(image, labels, random_state=None):
+def selfpred_ilastik(image, labels, random_state=None, filter_set=FILTER_SET):
     '''
     Pixel classification with Ilastik.
-    Chooses between pixel_classification_ilastik() and pixel_classification_ilastik_multichannel() based on the number of channels in the image.
-    Uses the default filter set and scales.
+    Chooses between simple feature extraction (transform with filterset) and extract_ila_features_multichannel() based on the number of channels in the image.
+    Uses the default filter set and scales of ilastik.
     INPUT:
         image (np.ndarray): image to predict on; shape (C, H, W) or (H, W, C) or (H, W)
         labels (np.ndarray): labels for the image; shape (H, W), same dimensions as image
         random_state (int): random state for the random forest classifier
+        filter_set (FilterSet from ilastik.napari.filters): filter set to use for feature extraction
     OUTPUT:
         labels_predicted (np.ndarray): predicted labels; shape (H, W)
     '''
+    # Extract features (depending on the number of channels)
     if image.ndim > 2:
-        prediction = pixel_classification_ilastik_multichannel(image, labels, random_state = random_state)
+        features = extract_ila_features_multichannel(image)
     else:
-        prediction = pixel_classification_ilastik(image, labels, random_state = random_state)
+        features = filter_set.transform(image)
+    # Fit the classifier and predict
+    prediction = ila_pred_from_features(features, labels, random_state=random_state)
     return prediction
