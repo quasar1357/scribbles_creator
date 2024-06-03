@@ -15,10 +15,39 @@ def selfpred_convpaint(image, labels, layer_list=[0], scalings=[1,2], model="vgg
     OUTPUTS:
         predicted (np.ndarray): predicted segmentation. Shape (H, W)
     '''
+    # Ensure the image has the right shape
     if image.ndim == 3 and image.shape[2] < 4:
         image = np.moveaxis(image, 2, 0) # Convpaint expects (C, H, W)
+
+    # Get the features, targets and model
+    features_annot, targets, model = get_features_targets_model(
+        image, labels, layer_list=layer_list, scalings=scalings, model_name=model)
+
+    # Train the classifier
+    features_train, labels_train = features_annot, targets
+    random_forest = RandomForestClassifier(random_state=random_state)
+    random_forest.fit(features_train, labels_train)
+
+    # Predict on the image
+    predicted = predict_image(
+        image, model, random_forest, scalings=scalings,
+        order=1, use_min_features=False, image_downsample=1)
+    return predicted
+
+def get_features_targets_model(image, labels, layer_list=[0], scalings=[1,2], model_name="vgg16"):
+    '''
+    Extract features from an image using ConvPaint and VGG16 as feature extractor.
+    INPUT:
+        image (np.ndarray): image to extract features from. Shape (H, W, C)
+        labels (np.ndarray): labels for the image. Shape (H, W), same dimensions as image
+        layer_list (list of int): list of layer indices to use for feature extraction with vgg16
+        scalings (list of int): list of scalings to use for feature extraction with vgg16
+        model (str): model to use for feature extraction
+    OUTPUTS:
+        features (np.ndarray): extracted features. Shape (H, W, n_features)
+    '''
     # Define the model
-    model = Hookmodel(model_name=model)
+    model = Hookmodel(model_name=model_name)
     # Ensure the layers are given as a list
     if isinstance(layer_list, int):
         layer_list = [layer_list]
@@ -32,18 +61,7 @@ def selfpred_convpaint(image, labels, layer_list=[0], scalings=[1,2], model="vgg
         model=model, image=image, annotations=labels, scalings=scalings,
         order=1, use_min_features=False, image_downsample=1)
 
-    # Train the classifier
-    # split_dataset = train_test_split(features_annot, targets, test_size=0.2, random_state=42)
-    # features_train, features_test, labels_train, labels_test = split_dataset
-    features_train, labels_train = features_annot, targets
-    random_forest = RandomForestClassifier(n_estimators=100, random_state=random_state)
-    random_forest.fit(features_train, labels_train)
-
-    # Predict on the image
-    predicted = predict_image(
-        image, model, random_forest, scalings=scalings,
-        order=1, use_min_features=False, image_downsample=1)
-    return predicted
+    return features_annot, targets, model
 
 
 def generate_convpaint_tag(layer_list, scalings, model="vgg16"):
