@@ -3,13 +3,21 @@ from sklearn.ensemble import RandomForestClassifier
 from skimage.transform import resize
 import torch
 from torchvision.transforms import ToTensor
-from sklearn.model_selection import train_test_split
 
 loaded_dinov2_models = {}
 
 ### FEATURE EXTRACTION ###
 
-def extract_features_rgb(image, dinov2_model='s', pad_mode='reflect'):
+def extract_features_rgb(image, dinov2_model='s'):
+    '''
+    Takes an RGB image and extracts features using a DINOv2 model.
+    INPUT:
+        image (np.ndarray): RGB image. Shape (H, W, C) where C=3
+        dinov2_model (str): model to use for feature extraction.
+            Options: 's', 'b', 'l', 'g', 's_r', 'b_r', 'l_r', 'g_r' (r = registers)
+    OUTPUT:
+        features (np.ndarray): extracted features. Shape (H*W, F) where F is the number of features extracted
+    '''
     trainset_mean, trainset_sd = [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
     image = normalize_np_array(image, trainset_mean, trainset_sd, axis = (0,1))
     # Convert to tensor and add batch dimension
@@ -39,7 +47,17 @@ def extract_features_rgb(image, dinov2_model='s', pad_mode='reflect'):
     features = features[0]
     return features
 
-def extract_features_multichannel(image, dinov2_model='s', pad_mode='reflect'):
+def extract_features_multichannel(image, dinov2_model='s'):
+    '''
+    Takes an image with multiple channels and extracts features using a DINOv2 model.
+    Treats each channel as an RGB image (copying it for R, G and B), extracts features separately, and concatenates them.
+    INPUT:
+        image (np.ndarray): image with multiple channels. Shape (H, W, C) or (H, W)
+        dinov2_model (str): model to use for feature extraction.
+            Options: 's', 'b', 'l', 'g', 's_r', 'b_r', 'l_r', 'g_r' (r = registers)
+    OUTPUT:
+        features (np.ndarray): extracted features. Shape (H*W, F*C) where F is the number of features extracted per channel
+    '''
     # If image is single channel, stack it to have 3 dimensions (the last one being the single channel)
     if len(image.shape) == 2:
         image = np.stack((image,), axis=-1)
@@ -49,22 +67,46 @@ def extract_features_multichannel(image, dinov2_model='s', pad_mode='reflect'):
         # Use channel as r, g and b channels for feature extraction
         image_channel = image[:,:,channel]
         img_channel = np.stack((image_channel,)*3, axis=-1)
-        channel_features = extract_features_rgb(img_channel, dinov2_model, pad_mode)
+        channel_features = extract_features_rgb(img_channel, dinov2_model)
         features_list.append(channel_features)
     features = np.concatenate(features_list, axis=1)
     return features
 
-def extract_features(image, dinov2_model='s', pad_mode='reflect', rgb=True):
+def extract_features(image, dinov2_model='s', rgb=True):
+    '''
+    Takes an image and extracts features using a DINOv2 model.
+    If the image has 3 channels and RGB is chosen, extract features as usual.
+    Otherwise extract features for each channel and concatenate them.
+    INPUT:
+        image (np.ndarray): image. Shape (H, W, C) or (H, W)
+        dinov2_model (str): model to use for feature extraction.
+            Options: 's', 'b', 'l', 'g', 's_r', 'b_r', 'l_r', 'g_r' (r = registers)
+        rgb (bool): whether to treat a 3-channel image as RGB or not
+    OUTPUT:
+        features (np.ndarray): extracted features. Shape (H*W, F) where F is the number of features extracted
+    '''
     # If the image has 3 channels and RGB is chosen, extract features as usual
     if len(image.shape) == 3 and image.shape[2] == 3 and rgb:
-        dinov2_features = extract_features_rgb(image, dinov2_model, pad_mode)
+        dinov2_features = extract_features_rgb(image, dinov2_model)
     # If the image does not have 3 channels and/or RGB is not chosen,
     # extract features for each channel and concatenate them
     else:
-        dinov2_features = extract_features_multichannel(image, dinov2_model, pad_mode)
+        dinov2_features = extract_features_multichannel(image, dinov2_model)
     return dinov2_features
 
-def get_annot_features_and_targets(patch_features_flat, labels, patch_size = (14,14), interpolate_features=True):
+def get_annot_features_and_targets(patch_features_flat, labels, patch_size=(14,14), interpolate_features=True):
+    '''
+    Takes linearized per-patch features and 2D per-pixel labels, and extracts the features and targets for annotated pixels.
+    INPUT:
+        patch_features_flat (np.ndarray): linearized features extracted from patches.
+            Shape (Hp * Wp, F) where Hp and Wp are the patches per height and width, and F is the number of features extracted
+        labels (np.ndarray): 2D per-pixel labels. Shape (H, W)
+        patch_size (tuple of int): size of the patches used for feature extraction
+        interpolate_features (bool): whether to interpolate the features to per-pixel level
+    OUTPUT:
+        features_annot (np.ndarray): features for annotated pixels. Shape (N, F) where N is the number of annotated pixels
+        targets (np.ndarray): targets (classes) for annotated pixels. Shape (N,)
+    '''
     num_features = patch_features_flat.shape[1]
     labels_flat = labels.flatten()
     labels_mask = labels_flat > 0
@@ -79,35 +121,62 @@ def get_annot_features_and_targets(patch_features_flat, labels, patch_size = (14
 ### MAIN FUNCTIONS ###
 
 def train_dino_forest(image_batch, labels_batch, dinov2_model='s', pad_mode='reflect', random_state=None, rgb=True, interpolate_features=True):
+    '''
+    Takes an image batch and a label batch, extracts features using a DINOv2 model, and trains a random forest classifier.
+    INPUT:
+        image_batch (list of np.ndarray): list of images. Each image has shape (H, W, C) or (H, W)
+        labels_batch (list of np.ndarray): list of labels. Each label has shape (H, W)
+        dinov2_model (str): model to use for feature extraction.
+            Options: 's', 'b', 'l', 'g', 's_r', 'b_r', 'l_r', 'g_r' (r = registers)
+        pad_mode (str): padding mode for the patches, according to numpy pad method
+        random_state (int): random state for the random forest classifier
+        rgb (bool): whether to treat 3-channel images as RGB or not
+        interpolate_features (bool): whether to interpolate the features to per-pixel level
+    OUTPUT:
+        random_forest (RandomForestClassifier): trained random forest classifier
+    '''
     if not len(image_batch) == len(labels_batch):
-        raise ValueError('Image and label batch must have the same length')
-    # if not all([image.shape[:2] == labels.shape for image, labels in zip(image_batch, labels_batch)]):
-    #     raise ValueError('Each image and label in the batch must have the same spatial dimensions')
+        raise ValueError('Image and label batch must have the same length (each image needs its labels)')
+    if not all([image.shape[:2] == labels.shape for image, labels in zip(image_batch, labels_batch)]):
+        raise ValueError('Each image and its labels must have the same spatial dimensions')
     if not all([len(image.shape) == len(image_batch[0].shape) for image in image_batch]):
         raise ValueError('All images in the batch must have the same number of channels')
-    if not all([image.shape[2] == image_batch[0].shape[2] for image in image_batch]):
+    is_multichannel = len(image_batch[0].shape) == 3
+    all_same_channels = all([image.shape[2] == image_batch[0].shape[2] for image in image_batch])
+    if is_multichannel and not all_same_channels:
         raise ValueError('All images in the batch must have the same number of channels')
     features_list = []
     targets_list = []
     for image, labels in zip(image_batch, labels_batch):
         padded_image = pad_to_patch(image, "bottom", "right", pad_mode=pad_mode, patch_size=(14,14))
         padded_labels = pad_to_patch(labels, "bottom", "right", pad_mode="constant", patch_size=(14,14))
-        patch_features_flat = extract_features(padded_image, dinov2_model, pad_mode, rgb)
+        patch_features_flat = extract_features(padded_image, dinov2_model, rgb)
         features_annot, targets = get_annot_features_and_targets(patch_features_flat, padded_labels, interpolate_features=interpolate_features)
         features_list.append(features_annot)
         targets_list.append(targets)
     features_annot = np.concatenate(features_list)
     targets = np.concatenate(targets_list)
-    # split_dataset = train_test_split(features, targets, test_size=0.2, random_state=42)
-    # features_train, features_test, labels_train, labels_test = split_dataset
     features_train, labels_train = features_annot, targets
     random_forest = RandomForestClassifier(n_estimators=100, random_state=random_state)
     random_forest.fit(features_train, labels_train)
     return random_forest
 
 def predict_dino_forest(image, random_forest, dinov2_model='s', pad_mode='reflect', rgb=True, interpolate_features=True):
+    '''
+    Takes an image and a trained random forest classifier, extracts features using a DINOv2 model, and predicts labels.
+    INPUT:
+        image (np.ndarray): image to predict on. Shape (H, W, C) or (H, W)
+        random_forest (RandomForestClassifier): trained random forest classifier
+        dinov2_model (str): model to use for feature extraction.
+            Options: 's', 'b', 'l', 'g', 's_r', 'b_r', 'l_r', 'g_r' (r = registers)
+        pad_mode (str): padding mode for the patches, according to numpy pad method
+        rgb (bool): whether to treat a 3-channel image as RGB or not
+        interpolate_features (bool): whether to interpolate the features to per-pixel level
+    OUTPUT:
+        pred_img_recrop (np.ndarray): predicted labels. Shape (H, W)
+    '''
     padded_image = pad_to_patch(image, "bottom", "right", pad_mode=pad_mode, patch_size=(14,14))
-    patch_features_flat = extract_features(padded_image, dinov2_model, pad_mode, rgb)
+    patch_features_flat = extract_features(padded_image, dinov2_model, rgb)
     num_features = patch_features_flat.shape[1]
     # If we want interpolated features, we reshape them to the image size (with interpolation), and then reshape them back to flat features
     if interpolate_features:
@@ -126,14 +195,27 @@ def predict_dino_forest(image, random_forest, dinov2_model='s', pad_mode='reflec
     return pred_img_recrop
 
 def selfpredict_dino_forest(image, labels, dinov2_model='s', pad_mode='reflect', random_state=None, rgb=True, interpolate_features=True):
+    '''
+    Takes an image and labels, extracts features using a DINOv2 model, trains a random forest classifier
+    based on the labels, and predicts labels for the entire image.
+    INPUT:
+        image (np.ndarray): image to predict on. Shape (H, W, C) or (H, W)
+        labels (np.ndarray): labels for the image. Shape (H, W), same dimensions as image
+        dinov2_model (str): model to use for feature extraction.
+            Options: 's', 'b', 'l', 'g', 's_r', 'b_r', 'l_r', 'g_r' (r = registers)
+        pad_mode (str): padding mode for the patches, according to numpy pad method
+        random_state (int): random state for the random forest classifier
+        rgb (bool): whether to treat a 3-channel image as RGB or not
+        interpolate_features (bool): whether to interpolate the features to per-pixel level
+    OUTPUT:
+        pred_img_recrop (np.ndarray): predicted labels. Shape (H, W)
+    '''
     # TRAIN
     padded_image = pad_to_patch(image, "bottom", "right", pad_mode=pad_mode, patch_size=(14,14))
     padded_labels = pad_to_patch(labels, "bottom", "right", pad_mode="constant", patch_size=(14,14))
-    patch_features_flat = extract_features(padded_image, dinov2_model, pad_mode, rgb)
+    patch_features_flat = extract_features(padded_image, dinov2_model, rgb)
     num_features = patch_features_flat.shape[1]
     features_annot, targets = get_annot_features_and_targets(patch_features_flat, padded_labels, interpolate_features=interpolate_features)
-    # split_dataset = train_test_split(features, targets, test_size=0.2, random_state=42)
-    # features_train, features_test, labels_train, labels_test = split_dataset
     features_train, labels_train = features_annot, targets
     random_forest = RandomForestClassifier(n_estimators=100, random_state=random_state)
     random_forest.fit(features_train, labels_train)
@@ -171,7 +253,8 @@ def normalize_np_array(array, new_mean, new_sd, axis=(0,1)):
 def pad_to_patch(image, vert_pos="center", hor_pos="center", pad_mode='constant', patch_size=(14,14)):
     '''
     Pads an image to the next multiple of patch size.
-    The pad position can be chosen on both axis in the tuple (vert, hor), where vert can be "top", "center" or "bottom" and hor can be "left", "center" or "right".
+    The pad position can be chosen on both axis in the tuple (vert, hor),
+    where vert can be "top", "center" or "bottom" and hor can be "left", "center" or "right".
     pad_mode can be chosen according to numpy pad method.
     '''
     # If image is an rgb image, run this function on each channel
@@ -205,6 +288,19 @@ def pad_to_patch(image, vert_pos="center", hor_pos="center", pad_mode='constant'
     return image_padded
 
 def reshape_patches_to_img(patches, image_shape, patch_size=(14,14), interpolation_order=None):
+    '''
+    Takes linearized patches, with or without a second dimension for features,
+    and reshapes them to the size of the image.
+    If interpolation_order is None or 0, the patches are simply repeated.
+    If interpolation_order is not None and not 0, the patches are resized to the image size.
+    INPUT:
+        patches (np.ndarray): linearized patches. Shape (Hp * Wp, F) or (Hp * Wp)
+        image_shape (tuple of int): shape of the image to reshape to
+        patch_size (tuple of int): size of the patches
+        interpolation_order (int): order of interpolation for resizing the patches
+    OUTPUT:
+        patch_img (np.ndarray): reshaped image. Shape (H, W) or (H, W, F)
+    '''
     if not (image_shape[0]%patch_size[0] == 0 and image_shape[1]%patch_size[1] == 0):
         raise ValueError('Image shape must be multiple of patch size')
     if len(patches.shape) == 1:

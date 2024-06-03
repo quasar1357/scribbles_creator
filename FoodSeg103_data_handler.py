@@ -218,10 +218,10 @@ def pred_food_ilastik(image, folder_path, img_num, mode="all", bin="NA", scribbl
     return prediction
 
 def pred_food_dino(image, folder_path, img_num, mode="all", bin="NA", scribble_width=None, suff=False, save_res=False, show_res=False, ground_truth=None,
-                   dinov2_model='s', dinov2_layers=(), dinov2_scales=(), upscale_order=1, random_state=None):
+                   dinov2_model='s', upscale_order=1, random_state=None):
     '''Shortcut for pred_food() with pred_type="dino" (see pred_cellpose() for details).'''
     prediction = pred_food(image, folder_path, img_num, pred_type="dino", mode=mode, bin=bin, scribble_width=scribble_width, suff=suff, save_res=save_res, show_res=show_res, ground_truth=ground_truth,
-                           dinov2_model=dinov2_model, dinov2_layers=dinov2_layers, dinov2_scales=dinov2_scales, upscale_order=upscale_order, random_state=random_state)
+                           dinov2_model=dinov2_model, upscale_order=upscale_order, random_state=random_state)
     return prediction
 
 

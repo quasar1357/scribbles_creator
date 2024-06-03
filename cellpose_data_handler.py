@@ -269,10 +269,10 @@ def pred_cellpose_ilastik(folder_path, img_num, mode="all", bin="NA", scribble_w
     return prediction
 
 def pred_cellpose_dino(folder_path, img_num, mode="all", bin="NA", scribble_width=None, suff=False, save_res=False, show_res=False, show_gt=True,
-                       dinov2_model='s', dinov2_layers=(), dinov2_scales=(), upscale_order=1, random_state=None):
+                       dinov2_model='s', upscale_order=1, random_state=None):
     '''Shortcut for pred_cellpose() with pred_type="dino" (see pred_cellpose() for details).'''
     prediction = pred_cellpose(folder_path, img_num, pred_type="dino", mode=mode, bin=bin, scribble_width=scribble_width, suff=suff, save_res=save_res, show_res=show_res, show_gt=show_gt,
-                               dinov2_model=dinov2_model, dinov2_layers=dinov2_layers, dinov2_scales=dinov2_scales, upscale_order=upscale_order, random_state=random_state)
+                               dinov2_model=dinov2_model, upscale_order=upscale_order, random_state=random_state)
     return prediction
 
 
