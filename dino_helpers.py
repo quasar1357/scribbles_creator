@@ -1,7 +1,4 @@
 import numpy as np
-from dino_paint_utils import extract_feature_space, predict_space_to_image
-from napari_convpaint.conv_paint_utils import train_test_split, extract_annotated_pixels, train_classifier
-from sklearn.ensemble import RandomForestClassifier
 from dino_forest import selfpredict_dino_forest
 
 
