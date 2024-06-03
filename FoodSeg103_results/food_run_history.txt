@@ -13,4 +13,6 @@ run04	New run together with cellpose
 
 run05	After fixing the above issues, dilation inside loop, and edge cases handled properly
 
-run06	Use scribbles of run05 (copied over, named run06 but in fact from run05), but convpaint prediction with all features (not splitting off eval/test...)
+run06	Use scribbles of run05 (copied over, named run06 but in fact from run05), but convpaint prediction with all features (not splitting of eval/test...)
+	run06a --> initial run06 with buggy ilastik (prob>0.5 instead of max. prob)
+	run06  --> everything from run06a but with fixed ilastik

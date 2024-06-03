@@ -40,3 +40,5 @@ scribbles_run04 - all 540 images, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1 with w1 a
 run05	After fixing the above issues, dilation inside loop, and edge cases handled properly
 
 run06	Use scribbles of run05 (copied over, named run06 but in fact from run05), but convpaint prediction with all features (not splitting off eval/test...)
+	run06a --> initial run06 with buggy ilastik (prob>0.5 instead of max. prob)
+	run06  --> everything from run06a but with fixed ilastik
