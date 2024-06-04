@@ -4,11 +4,12 @@ import pandas as pd
 import re
 from PIL import Image
 import napari
+from time import time
 
 from scribbles_creator import create_even_scribbles
-from convpaint_helpers import selfpred_convpaint, generate_convpaint_tag
-from ilastik_helpers import selfpred_ilastik
-from dino_helpers import selfpred_dino
+from convpaint_helpers import selfpred_convpaint, generate_convpaint_tag, features_extract_convpaint
+from ilastik_helpers import selfpred_ilastik, features_extract_ila
+from dino_helpers import selfpred_dino, features_extract_dino
 from image_analysis_helpers import single_img_stats
 
 
@@ -223,6 +224,21 @@ def pred_food_dino(image, folder_path, img_num, mode="all", bin="NA", scribble_w
     prediction = pred_food(image, folder_path, img_num, pred_type="dino", mode=mode, bin=bin, scribble_width=scribble_width, suff=suff, save_res=save_res, show_res=show_res, ground_truth=ground_truth,
                            dinov2_model=dinov2_model, upscale_order=upscale_order, random_state=random_state)
     return prediction
+
+
+
+def time_food(image, pred_type="convpaint", **feature_kwargs):
+    # Ensure the image has the right shape
+    if image.ndim == 3 and image.shape[2] < 4:
+        image = np.moveaxis(image, 2, 0)
+
+    feature_extract_func = {"convpaint": features_extract_convpaint, "ilastik": features_extract_ila, "dino": features_extract_dino}[pred_type]
+    t_start = time()
+    # print(f"Calling feature extraction function {feature_extract_func.__name__} with kwargs {feature_kwargs}")
+    feature_extract_func(image, **feature_kwargs)
+    t_end = time()
+    t = t_end - t_start
+    return t
 
 
 

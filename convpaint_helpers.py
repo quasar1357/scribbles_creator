@@ -1,5 +1,5 @@
 import numpy as np
-from napari_convpaint.conv_paint_utils import (Hookmodel, filter_image_multioutputs, get_features_current_layers, get_multiscale_features, train_classifier, predict_image, train_test_split)
+from napari_convpaint.conv_paint_utils import (Hookmodel, filter_image_multichannels, get_features_current_layers, get_multiscale_features, train_classifier, predict_image, train_test_split)
 from sklearn.ensemble import RandomForestClassifier
 
 def selfpred_convpaint(image, labels, layer_list=[0], scalings=[1,2], model="vgg16", random_state=None):
@@ -73,3 +73,18 @@ def generate_convpaint_tag(layer_list, scalings, model="vgg16"):
     scalings_pref = f'_s-{str(scalings)[1:-1].replace(", ", "-")}'# if scalings != [1,2] else ''
     pred_tag = f"convpaint{model_pref}{layer_pref}{scalings_pref}"
     return pred_tag
+
+
+def features_extract_convpaint(image, layer_list=[0], scalings=[1,2], model_name="vgg16", order=0):
+    # Define the model
+    model = Hookmodel(model_name=model_name)
+    # Ensure the layers are given as a list
+    if isinstance(layer_list, int):
+        layer_list = [layer_list]
+    # Read out the layer names
+    all_layers = [key for key in model.module_dict.keys()]
+    layers = [all_layers[i] for i in layer_list]
+    # Register the hooks for the selected layers
+    model.register_hooks(selected_layers=layers)
+    features = filter_image_multichannels(image, model, scalings=scalings, order=order, image_downsample=1)
+    return features

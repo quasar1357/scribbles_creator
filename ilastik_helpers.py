@@ -46,19 +46,36 @@ def extract_ila_features_multichannel(image, filter_set=FILTER_SET):
             feature_map = np.concatenate((feature_map, channel_feature_map), axis=2)
     return feature_map
 
-def ila_pred_from_features(feature_map, labels, random_state=None):
+def features_extract_ila(image, filter_set=FILTER_SET):
+    """
+    Feature Extraction with Ilastik for single-channel images.
+    INPUT:
+        image (np.ndarray): image to predict on; shape (H, W)
+        filter_set (FilterSet from ilastik.napari.filters): filter set to use for feature extraction
+    OUTPUT:
+        features (np.ndarray): feature map (H, W, C) with C being the number of features per pixel
+    """
+    # Extract features (depending on the number of channels)
+    if image.ndim > 2:
+        features = extract_ila_features_multichannel(image)
+    else:
+        features = filter_set.transform(image)
+    return features
+
+def ila_self_pred_from_features(feature_map, labels, random_state=None):
     '''
-    Predicts labels with Ilastik from a feature map.
+    Predicts all pixel classes with Ilastik from a feature map and sparse annotation (labels).
     INPUT:
         feature_map (np.ndarray): feature map; shape (H, W, C) with C being the number of features per pixel
         labels (np.ndarray): labels for the image; shape (H, W), same dimensions as image
-        random_state (int): random state for the random forest classifier
+        random_state (int): random state to use for the random forest classifier
     '''
-    # Fit the classifier
+    # TRAIN
     sparse_labels = COO.from_numpy(labels) # convert to sparse format (incl. coordinates)
     clf = NDSparseClassifier(RandomForestClassifier(random_state=random_state))
     clf.fit(feature_map, sparse_labels)
-    # Get the prediction probabilities
+    # PREDICT
+    # Get the class probabilities
     proba = clf.predict_proba(feature_map)
     prediction = np.moveaxis(proba, -1, 0)
     # Assign the class with the highest probability to each pixel
@@ -86,10 +103,7 @@ def selfpred_ilastik(image, labels, random_state=None, filter_set=FILTER_SET):
         labels_predicted (np.ndarray): predicted labels; shape (H, W)
     '''
     # Extract features (depending on the number of channels)
-    if image.ndim > 2:
-        features = extract_ila_features_multichannel(image)
-    else:
-        features = filter_set.transform(image)
+    features = features_extract_ila(image, filter_set=filter_set)
     # Fit the classifier and predict
-    prediction = ila_pred_from_features(features, labels, random_state=random_state)
+    prediction = ila_self_pred_from_features(features, labels, random_state=random_state)
     return prediction

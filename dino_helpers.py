@@ -1,5 +1,5 @@
 import numpy as np
-from dino_forest import selfpredict_dino_forest
+from dino_forest import selfpredict_dino_forest, extract_dino_features, pad_to_patch
 
 
 def selfpred_dino(image, labels, dinov2_model='s', upscale_order=1, pad_mode='reflect', random_state=None):
@@ -19,3 +19,11 @@ def selfpred_dino(image, labels, dinov2_model='s', upscale_order=1, pad_mode='re
         image = np.moveaxis(image, 0, -1) # DINOv2 expects (H, W, C)    
     pred = selfpredict_dino_forest(image, labels, dinov2_model=dinov2_model, pad_mode=pad_mode, random_state=random_state, rgb=True, interpolate_features=upscale_order)
     return pred
+
+
+def features_extract_dino(image, dinov2_model='s', pad_mode='reflect'):
+    if len(image.shape) == 3 and image.shape[0] < 4:
+        image = np.moveaxis(image, 0, -1) # DINOv2 expects (H, W, C)
+    padded_image = pad_to_patch(image, "bottom", "right", pad_mode=pad_mode, patch_size=(14,14))
+    patch_features_flat = extract_dino_features(padded_image, dinov2_model, rgb=True)
+    return patch_features_flat
