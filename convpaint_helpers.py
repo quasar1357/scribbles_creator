@@ -1,6 +1,7 @@
 import numpy as np
-from napari_convpaint.conv_paint_utils import (Hookmodel, filter_image_multichannels, get_features_current_layers, get_multiscale_features, train_classifier, predict_image, train_test_split)
+from napari_convpaint.conv_paint_utils import (Hookmodel, filter_image_multichannels, get_features_current_layers, predict_image)
 from sklearn.ensemble import RandomForestClassifier
+from time import time
 
 def selfpred_convpaint(image, labels, layer_list=[0], scalings=[1,2], model="vgg16", random_state=None):
     '''
@@ -15,9 +16,9 @@ def selfpred_convpaint(image, labels, layer_list=[0], scalings=[1,2], model="vgg
     OUTPUTS:
         predicted (np.ndarray): predicted segmentation. Shape (H, W)
     '''
-    # Ensure the image has the right shape
+    # Ensure (H, W, C) - expected by ConvPaint
     if image.ndim == 3 and image.shape[2] < 4:
-        image = np.moveaxis(image, 2, 0) # Convpaint expects (C, H, W)
+        image = np.moveaxis(image, 2, 0)
 
     # Get the features, targets and model
     features_annot, targets, model = get_features_targets_model(
@@ -38,7 +39,7 @@ def get_features_targets_model(image, labels, layer_list=[0], scalings=[1,2], mo
     '''
     Extract features from an image using ConvPaint and VGG16 as feature extractor.
     INPUT:
-        image (np.ndarray): image to extract features from. Shape (H, W, C)
+        image (np.ndarray): image to extract features from. Shape (C, H, W)
         labels (np.ndarray): labels for the image. Shape (H, W), same dimensions as image
         layer_list (list of int): list of layer indices to use for feature extraction with vgg16
         scalings (list of int): list of scalings to use for feature extraction with vgg16
@@ -60,7 +61,6 @@ def get_features_targets_model(image, labels, layer_list=[0], scalings=[1,2], mo
     features_annot, targets = get_features_current_layers(
         model=model, image=image, annotations=labels, scalings=scalings,
         order=1, use_min_features=False, image_downsample=1)
-
     return features_annot, targets, model
 
 
@@ -75,7 +75,7 @@ def generate_convpaint_tag(layer_list, scalings, model="vgg16"):
     return pred_tag
 
 
-def features_extract_convpaint(image, layer_list=[0], scalings=[1,2], model_name="vgg16", order=0):
+def extract_convpaint_features(image, layer_list=[0], scalings=[1,2], model_name="vgg16", order=0):
     # Define the model
     model = Hookmodel(model_name=model_name)
     # Ensure the layers are given as a list
@@ -88,3 +88,46 @@ def features_extract_convpaint(image, layer_list=[0], scalings=[1,2], model_name
     model.register_hooks(selected_layers=layers)
     features = filter_image_multichannels(image, model, scalings=scalings, order=order, image_downsample=1)
     return features
+
+def time_convpaint(image, labels=None, layer_list=[0], scalings=[1,2], model_name="vgg16", order=0, random_state=None):
+    # Ensure (H, W, C) - expected by ConvPaint
+    if image.ndim == 3 and image.shape[2] < 4:
+        image = np.moveaxis(image, 2, 0)
+
+    # Define the model
+    model = Hookmodel(model_name=model_name)
+    # Ensure the layers are given as a list
+    if isinstance(layer_list, int):
+        layer_list = [layer_list]
+    # Read out the layer names
+    all_layers = [key for key in model.module_dict.keys()]
+    layers = [all_layers[i] for i in layer_list]
+    # Register the hooks for the selected layers
+    model.register_hooks(selected_layers=layers)
+
+    # Extract features for the full image
+    t_start_features = time()
+    features = filter_image_multichannels(image, model, scalings=scalings, order=order, image_downsample=1)
+    t_features = time() - t_start_features
+    if labels is None:
+        return t_features
+
+    # Do the full self-prediction (extracting only annot features for training)
+    # without loading the model if labels are given
+    t_start_full = time()
+    features_annot, targets = get_features_current_layers(
+        model=model, image=image, annotations=labels, scalings=scalings,
+        order=1, use_min_features=False, image_downsample=1)
+    # Train and predict
+    t_start_pred = time()
+    # Train the classifier
+    features_train, labels_train = features_annot, targets
+    random_forest = RandomForestClassifier(random_state=random_state)
+    random_forest.fit(features_train, labels_train)
+    # Predict on the image
+    predicted = predict_image(
+        image, model, random_forest, scalings=scalings,
+        order=1, use_min_features=False, image_downsample=1)
+    t_pred = time() - t_start_pred
+    t_tot = time() - t_start_full
+    return t_features, t_pred, t_tot

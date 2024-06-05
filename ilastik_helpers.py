@@ -10,6 +10,8 @@ from sparse import COO
 from ilastik.napari.classifier import NDSparseClassifier
 from sklearn.ensemble import RandomForestClassifier
 import numpy as np
+from time import time
+
 
 # Define the filter set and scales
 FILTER_LIST = (Gaussian,
@@ -34,7 +36,7 @@ def extract_ila_features_multichannel(image, filter_set=FILTER_SET):
     OUTPUT:
         features (np.ndarray): feature map (H, W, C) with C being the number of features per pixel
     """
-    # Ensure (H, W, C)
+    # Ensure (H, W, C) - expected by Ilastik
     if len(image.shape) == 3 and image.shape[0] < 4:
         image = np.moveaxis(image, 0, -1)
     # Loop over channels, extract features and concatenate them
@@ -46,14 +48,14 @@ def extract_ila_features_multichannel(image, filter_set=FILTER_SET):
             feature_map = np.concatenate((feature_map, channel_feature_map), axis=2)
     return feature_map
 
-def features_extract_ila(image, filter_set=FILTER_SET):
+def extract_ilastik_features(image, filter_set=FILTER_SET):
     """
-    Feature Extraction with Ilastik for single-channel images.
+    Feature Extraction with Ilastik for single- or multi-channel images.
     INPUT:
-        image (np.ndarray): image to predict on; shape (H, W)
+        image (np.ndarray): image to predict on; shape (C, H, W) or (H, W, C) or (H, W)
         filter_set (FilterSet from ilastik.napari.filters): filter set to use for feature extraction
     OUTPUT:
-        features (np.ndarray): feature map (H, W, C) with C being the number of features per pixel
+        features (np.ndarray): feature map (H, W, F) with F being the number of features per pixel
     """
     # Extract features (depending on the number of channels)
     if image.ndim > 2:
@@ -62,13 +64,36 @@ def features_extract_ila(image, filter_set=FILTER_SET):
         features = filter_set.transform(image)
     return features
 
+def time_ilastik(image, labels=None, filter_set=FILTER_SET, random_state=None):
+    """
+    Feature Extraction with Ilastik for single-channel images.
+    INPUT:
+        image (np.ndarray): image to predict on; shape (C, H, W) or (H, W, C) or (H, W)
+        filter_set (FilterSet from ilastik.napari.filters): filter set to use for feature extraction
+    OUTPUT:
+        t_elapsed (float): seconds elapsed for feature extraction
+    """
+    t_start = time()
+    features = extract_ilastik_features(image, filter_set=filter_set)
+    t_features = time() - t_start
+    if labels is None:
+        return t_features
+    
+    t_start_pred = time()
+    prediction = ila_self_pred_from_features(features, labels, random_state=random_state)
+    t_pred = time() - t_start_pred
+    t_tot = time() - t_start
+    return t_features, t_pred, t_tot
+
 def ila_self_pred_from_features(feature_map, labels, random_state=None):
     '''
     Predicts all pixel classes with Ilastik from a feature map and sparse annotation (labels).
     INPUT:
-        feature_map (np.ndarray): feature map; shape (H, W, C) with C being the number of features per pixel
+        feature_map (np.ndarray): feature map; shape (H, W, F) with F being the number of features per pixel
         labels (np.ndarray): labels for the image; shape (H, W), same dimensions as image
         random_state (int): random state to use for the random forest classifier
+    OUTPUT:
+        labels_predicted (np.ndarray): predicted labels; shape (H, W)
     '''
     # TRAIN
     sparse_labels = COO.from_numpy(labels) # convert to sparse format (incl. coordinates)
@@ -103,7 +128,7 @@ def selfpred_ilastik(image, labels, random_state=None, filter_set=FILTER_SET):
         labels_predicted (np.ndarray): predicted labels; shape (H, W)
     '''
     # Extract features (depending on the number of channels)
-    features = features_extract_ila(image, filter_set=filter_set)
+    features = extract_ilastik_features(image, filter_set=filter_set)
     # Fit the classifier and predict
     prediction = ila_self_pred_from_features(features, labels, random_state=random_state)
     return prediction

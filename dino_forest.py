@@ -72,7 +72,7 @@ def extract_features_multichannel(image, dinov2_model='s'):
     features = np.concatenate(features_list, axis=1)
     return features
 
-def extract_dino_features(image, dinov2_model='s', rgb=True):
+def extract_features(image, dinov2_model='s', rgb=True):
     '''
     Takes an image (padded to a multiple of patch size) and extracts features using a DINOv2 model.
     If the image has 3 channels and RGB is chosen, extract features as usual.
@@ -151,7 +151,7 @@ def train_dino_forest(image_batch, labels_batch, dinov2_model='s', pad_mode='ref
     for image, labels in zip(image_batch, labels_batch):
         padded_image = pad_to_patch(image, "bottom", "right", pad_mode=pad_mode, patch_size=(14,14))
         padded_labels = pad_to_patch(labels, "bottom", "right", pad_mode="constant", patch_size=(14,14))
-        patch_features_flat = extract_dino_features(padded_image, dinov2_model, rgb)
+        patch_features_flat = extract_features(padded_image, dinov2_model, rgb)
         features_annot, targets = get_annot_features_and_targets(patch_features_flat, padded_labels, interpolate_features=interpolate_features)
         features_list.append(features_annot)
         targets_list.append(targets)
@@ -177,7 +177,7 @@ def predict_dino_forest(image, random_forest, dinov2_model='s', pad_mode='reflec
         pred_img_recrop (np.ndarray): predicted labels. Shape (H, W)
     '''
     padded_image = pad_to_patch(image, "bottom", "right", pad_mode=pad_mode, patch_size=(14,14))
-    patch_features_flat = extract_dino_features(padded_image, dinov2_model, rgb)
+    patch_features_flat = extract_features(padded_image, dinov2_model, rgb)
     num_features = patch_features_flat.shape[1]
     # If we want interpolated features, we reshape them to the image size (with interpolation), and then reshape them back to flat features
     if interpolate_features:
@@ -214,7 +214,7 @@ def selfpredict_dino_forest(image, labels, dinov2_model='s', pad_mode='reflect',
     # EXTRACT FEATURES
     padded_image = pad_to_patch(image, "bottom", "right", pad_mode=pad_mode, patch_size=(14,14))
     padded_labels = pad_to_patch(labels, "bottom", "right", pad_mode="constant", patch_size=(14,14))
-    patch_features_flat = extract_dino_features(padded_image, dinov2_model, rgb)
+    patch_features_flat = extract_features(padded_image, dinov2_model, rgb)
     num_features = patch_features_flat.shape[1]
     features_annot, targets = get_annot_features_and_targets(patch_features_flat, padded_labels, interpolate_features=interpolate_features)
     # TRAIN

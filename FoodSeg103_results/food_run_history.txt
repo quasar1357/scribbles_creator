@@ -6,7 +6,7 @@ run03	run on 460 images
 	run03b	just some local tests to verify run03
 
 run04	New run together with cellpose
-	With adjusted script, e.g. sample until mergin reached etc.
+	With adjusted script, e.g. sample until margin reached etc.
 	BUT: The removing of pixels if the % exceeds the max (after dilation) was not implemented properly; but shouldn't be an issue...
 	NOTE: In some cases there were more pixels sampled than intended! (e.g. cellpose img 222, bin 0.025)
 	2 analyses: second one with new metrics...

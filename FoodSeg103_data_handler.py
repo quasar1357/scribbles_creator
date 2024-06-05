@@ -7,9 +7,9 @@ import napari
 from time import time
 
 from scribbles_creator import create_even_scribbles
-from convpaint_helpers import selfpred_convpaint, generate_convpaint_tag, features_extract_convpaint
-from ilastik_helpers import selfpred_ilastik, features_extract_ila
-from dino_helpers import selfpred_dino, features_extract_dino
+from convpaint_helpers import selfpred_convpaint, generate_convpaint_tag, extract_convpaint_features, time_convpaint
+from ilastik_helpers import selfpred_ilastik, extract_ilastik_features, time_ilastik
+from dino_helpers import selfpred_dino, extract_dino_features, time_dino
 from image_analysis_helpers import single_img_stats
 
 
@@ -227,17 +227,24 @@ def pred_food_dino(image, folder_path, img_num, mode="all", bin="NA", scribble_w
 
 
 
-def time_food(image, pred_type="convpaint", **feature_kwargs):
+def time_food(image, labels=None, pred_type="convpaint", **kwargs):
+    '''
+    Wrapper for the time functions of the different prediction methods.
+    '''
     # Ensure the image has the right shape
     if image.ndim == 3 and image.shape[2] < 4:
         image = np.moveaxis(image, 2, 0)
 
-    feature_extract_func = {"convpaint": features_extract_convpaint, "ilastik": features_extract_ila, "dino": features_extract_dino}[pred_type]
-    t_start = time()
-    # print(f"Calling feature extraction function {feature_extract_func.__name__} with kwargs {feature_kwargs}")
-    feature_extract_func(image, **feature_kwargs)
-    t_end = time()
-    t = t_end - t_start
+    # feature_extract_func = {"convpaint": extract_convpaint_features, "ilastik": extract_ilastik_features, "dino": extract_dino_features}[pred_type]
+    # t_start = time()
+    # # print(f"Calling feature extraction function {feature_extract_func.__name__} with kwargs {kwargs}")
+    # feature_extract_func(image, **kwargs)
+    # t_end = time()
+    # t = t_end - t_start
+
+    time_func = {"convpaint": time_convpaint, "ilastik": time_ilastik, "dino": time_dino}[pred_type]
+    t = time_func(image, labels, **kwargs)
+
     return t
 
 

@@ -6,9 +6,9 @@ from PIL import Image
 import napari
 
 from scribbles_creator import create_even_scribbles
-from convpaint_helpers import selfpred_convpaint, generate_convpaint_tag
-from ilastik_helpers import selfpred_ilastik
-from dino_helpers import selfpred_dino
+from convpaint_helpers import selfpred_convpaint, generate_convpaint_tag, time_convpaint
+from ilastik_helpers import selfpred_ilastik, time_ilastik
+from dino_helpers import selfpred_dino, time_dino
 from napari_convpaint.conv_paint_utils import compute_image_stats, normalize_image
 from image_analysis_helpers import single_img_stats
 
@@ -274,6 +274,31 @@ def pred_cellpose_dino(folder_path, img_num, mode="all", bin="NA", scribble_widt
     prediction = pred_cellpose(folder_path, img_num, pred_type="dino", mode=mode, bin=bin, scribble_width=scribble_width, suff=suff, save_res=save_res, show_res=show_res, show_gt=show_gt,
                                dinov2_model=dinov2_model, upscale_order=upscale_order, random_state=random_state)
     return prediction
+
+
+
+def time_cellpose(img_num, folder_path, labels=None, pred_type="convpaint", **kwargs):
+    '''
+    Wrapper for the time functions of the different prediction methods.
+    '''
+    # Load the image
+    img_data = get_cellpose_img_data(folder_path, img_num, load_img=True, load_gt=False, load_scribbles=False, load_pred=False)
+    image = img_data["img"]
+    # Ensure the image has the right shape
+    if image.ndim == 3 and image.shape[2] < 4:
+        image = np.moveaxis(image, 2, 0)
+
+    # feature_extract_func = {"convpaint": extract_convpaint_features, "ilastik": extract_ilastik_features, "dino": extract_dino_features}[pred_type]
+    # t_start = time()
+    # # print(f"Calling feature extraction function {feature_extract_func.__name__} with kwargs {kwargs}")
+    # feature_extract_func(image, **kwargs)
+    # t_end = time()
+    # t = t_end - t_start
+
+    time_func = {"convpaint": time_convpaint, "ilastik": time_ilastik, "dino": time_dino}[pred_type]
+    t = time_func(image, labels, **kwargs)
+
+    return t
 
 
 
