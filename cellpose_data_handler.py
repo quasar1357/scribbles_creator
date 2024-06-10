@@ -277,34 +277,9 @@ def pred_cellpose_dino(folder_path, img_num, mode="all", bin="NA", scribble_widt
 
 
 
-def time_cellpose(img_num, folder_path, labels=None, pred_type="convpaint", **kwargs):
-    '''
-    Wrapper for the time functions of the different prediction methods.
-    '''
-    # Load the image
-    img_data = get_cellpose_img_data(folder_path, img_num, load_img=True, load_gt=False, load_scribbles=False, load_pred=False)
-    image = img_data["img"]
-    # Ensure the image has the right shape
-    if image.ndim == 3 and image.shape[2] < 4:
-        image = np.moveaxis(image, 2, 0)
-
-    # feature_extract_func = {"convpaint": extract_convpaint_features, "ilastik": extract_ilastik_features, "dino": extract_dino_features}[pred_type]
-    # t_start = time()
-    # # print(f"Calling feature extraction function {feature_extract_func.__name__} with kwargs {kwargs}")
-    # feature_extract_func(image, **kwargs)
-    # t_end = time()
-    # t = t_end - t_start
-
-    time_func = {"convpaint": time_convpaint, "ilastik": time_ilastik, "dino": time_dino}[pred_type]
-    t = time_func(image, labels, **kwargs)
-
-    return t
-
-
-
 def analyse_cellpose_single_file(folder_path, img_num, mode="all", bin=0.1, scribble_width=None, suff=False, pred_tag="convpaint", show_res=False):
     ''' 
-    Load and nalyse the scribbles and the prediction for a single image. Optionally show the results in a napari viewer.
+    Load and analyse the scribbles and the prediction for a single image. Optionally show the results in a napari viewer.
     INPUT:
         folder_path (str): path to the folder containing the ground truth, the scribbles and the prediction
         img_num (int): number of the image to be processed
@@ -341,7 +316,7 @@ def analyse_cellpose_single_file(folder_path, img_num, mode="all", bin=0.1, scri
         layers = None
         scalings = None
     # Add prediction type
-    if pred_tag == 'convpaint_l-0_s-1-2': pred_type = 'convpaint (default)'
+    # if pred_tag == 'convpaint_l-0_s-1-2': pred_type = 'convpaint (default)'
     if pred_tag[:10] == 'convpaint_': pred_type = 'convpaint' # If there is still an underline (i.e. it wasn't renamed to default), just call it "convpaint" (layers and scalings are already in the columns)
     if pred_tag == 'ilastik': pred_type = 'classical filters'
     if pred_tag == 'dino': pred_type = 'DINOv2'
@@ -398,4 +373,87 @@ def analyse_cellpose_single_file(folder_path, img_num, mode="all", bin=0.1, scri
                         'scribbles': scribbles_path,
                         'prediction': pred_path}, index=[0])
     
+    return res
+
+
+
+def time_cellpose(folder_path, img_num, mode="all", bin=0.1, scribble_width=None, suff=False, pred_tag="convpaint", **kwargs):
+    ''' 
+    Load and measure prediciton time of a cellpose image.    
+    '''
+    img_data = get_cellpose_img_data(folder_path, img_num, load_img=True, load_gt=True, load_scribbles=True, mode=mode, bin=bin, scribble_width=scribble_width, suff=suff, load_pred=False, pred_tag=pred_tag)
+    image_path = img_data["img_path"]
+    ground_truth_path = img_data["gt_path"]
+    scribbles_path = img_data["scribbles_path"]
+    # Read the images
+    image = img_data["img"]
+    labels = img_data["scribbles"]
+    ground_truth = img_data["gt"]
+    # Ensure the image has the right shape
+    if image.ndim == 3 and image.shape[2] < 4:
+        image = np.moveaxis(image, 2, 0)
+
+    # Add columns for the layers and scalings (extracted from the prediction tag)
+    if "convpaint" in pred_tag and pred_tag != "convpaint":
+        l_tag = re.split("_", pred_tag)[1]
+        layers = l_tag[2:]
+        # layers = re.split("-", l_tag)[1:]
+        s_tag = re.split("_", pred_tag)[2]
+        scalings = s_tag[2:]
+        # scalings = re.split("-", s_tag)[1:]
+    else:
+        layers = None
+        scalings = None
+    # Add prediction type
+    # if pred_tag == 'convpaint_l-0_s-1-2': pred_type = 'convpaint (default)'
+    if pred_tag[:9] == 'convpaint': pred_type = 'convpaint'
+    if pred_tag == 'ilastik': pred_type = 'classical filters'
+    if pred_tag == 'dino': pred_type = 'DINOv2'
+
+    # Calculate stats
+    class_1_pix_gt = np.sum(ground_truth == 1)
+    class_2_pix_gt = np.sum(ground_truth == 2)
+    max_class_pix_gt = max(class_1_pix_gt, class_2_pix_gt)
+    min_class_pix_gt = min(class_1_pix_gt, class_2_pix_gt)
+    pix_labelled = np.sum(labels>0)
+    class_1_pix_labelled = np.sum(labels == 1)
+    class_2_pix_labelled = np.sum(labels == 2)
+    max_pix_labelled = max(class_1_pix_labelled, class_2_pix_labelled)
+    min_pix_labelled = min(class_1_pix_labelled, class_2_pix_labelled)
+    pix_in_img = (labels.shape[0] * labels.shape[1])
+    perc_labelled = pix_labelled / pix_in_img * 100
+
+    # Measure the prediction time
+    time_func = {"convpaint": time_convpaint, "classical filters": time_ilastik, "DINOv2": time_dino}[pred_type]
+    t = time_func(image, labels, **kwargs)
+    t_load, t_features_full, t_features_train, t_train, t_pred, t_selfpred = t
+
+    res = pd.DataFrame({'img_num': img_num,
+                        'prediction tag': pred_tag,
+                        'prediction type': pred_type,
+                        'layers': layers,
+                        'scalings': scalings,
+                        'scribbles mode': mode,
+                        'scribbles bin': bin,
+                        'suffix': suff,
+                        'class_1_pix_gt': class_1_pix_gt,
+                        'class_2_pix_gt': class_2_pix_gt,
+                        'min_class_pix_gt': min_class_pix_gt,
+                        'max_class_pix_gt': max_class_pix_gt,
+                        'pix_labelled': pix_labelled,
+                        'class_1_pix_labelled': class_1_pix_labelled,
+                        'class_2_pix_labelled': class_2_pix_labelled,
+                        'min_class_pix_labelled': min_pix_labelled,
+                        'max_class_pix_labelled': max_pix_labelled,
+                        'pix_in_img': pix_in_img,
+                        'perc. labelled': perc_labelled,
+                        't_load': t_load,
+                        't_features_full': t_features_full,
+                        't_features_train': t_features_train,
+                        't_train': t_train,
+                        't_pred': t_pred,
+                        't_selfpred': t_selfpred,
+                        'image': image_path,
+                        'ground truth': ground_truth_path,
+                        'scribbles': scribbles_path}, index=[0])
     return res

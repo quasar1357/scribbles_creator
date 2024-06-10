@@ -64,27 +64,6 @@ def extract_ilastik_features(image, filter_set=FILTER_SET):
         features = filter_set.transform(image)
     return features
 
-def time_ilastik(image, labels=None, filter_set=FILTER_SET, random_state=None):
-    """
-    Feature Extraction with Ilastik for single-channel images.
-    INPUT:
-        image (np.ndarray): image to predict on; shape (C, H, W) or (H, W, C) or (H, W)
-        filter_set (FilterSet from ilastik.napari.filters): filter set to use for feature extraction
-    OUTPUT:
-        t_elapsed (float): seconds elapsed for feature extraction
-    """
-    t_start = time()
-    features = extract_ilastik_features(image, filter_set=filter_set)
-    t_features = time() - t_start
-    if labels is None:
-        return t_features
-    
-    t_start_pred = time()
-    prediction = ila_self_pred_from_features(features, labels, random_state=random_state)
-    t_pred = time() - t_start_pred
-    t_tot = time() - t_start
-    return t_features, t_pred, t_tot
-
 def ila_self_pred_from_features(feature_map, labels, random_state=None):
     '''
     Predicts all pixel classes with Ilastik from a feature map and sparse annotation (labels).
@@ -132,3 +111,44 @@ def selfpred_ilastik(image, labels, random_state=None, filter_set=FILTER_SET):
     # Fit the classifier and predict
     prediction = ila_self_pred_from_features(features, labels, random_state=random_state)
     return prediction
+
+
+def time_ilastik(image, labels=None, filter_set=FILTER_SET, random_state=None):
+    """
+    Time different steps of slefprediction using Ilastik.
+    """
+    # For ilastik, there is no model to load, so we only time the feature extraction and prediction
+    t_load = None
+    
+    # Extract features
+    t_start_features_full = time()
+    features = extract_ilastik_features(image, filter_set=filter_set)
+    t_features_full = time() - t_start_features_full
+    if labels is None:
+        return t_load, t_features_full, None, None, None, None
+    
+    # We always extract the features of the full image for the training
+    t_features_train = t_features_full
+    t_start_train = time()
+    # TRAIN
+    sparse_labels = COO.from_numpy(labels) # convert to sparse format (incl. coordinates)
+    clf = NDSparseClassifier(RandomForestClassifier(random_state=random_state))
+    clf.fit(features, sparse_labels)
+    t_train = time() - t_start_train
+    # PREDICT
+    t_start_pred = time()
+    # Get the class probabilities
+    proba = clf.predict_proba(features)
+    prediction = np.moveaxis(proba, -1, 0)
+    # Assign the class with the highest probability to each pixel
+    labels_predicted = np.zeros_like(prediction[0].astype(np.uint8))
+    max_probs = np.zeros_like(prediction[0])
+    for class_label in range(0, prediction.shape[0]):
+        # Where the probability for the current class is higher than the previous maximum, assign the class label
+        labels_predicted[prediction[class_label] > max_probs] = class_label+1
+        # Update the maximum probability
+        max_probs = np.maximum(prediction[class_label], max_probs)
+    t_pred = time() - t_start_pred
+    # Also calculate the total time for the self-prediction
+    t_selfpred = time() - t_start_features_full
+    return t_load, t_features_full, t_features_train, t_train, t_pred, t_selfpred

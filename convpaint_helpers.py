@@ -90,10 +90,14 @@ def extract_convpaint_features(image, layer_list=[0], scalings=[1,2], model_name
     return features
 
 def time_convpaint(image, labels=None, layer_list=[0], scalings=[1,2], model_name="vgg16", order=0, random_state=None):
+    """
+    Time different steps of slefprediction using Convpaint.
+    """
+    # Load the model
+    t_start_load = time()
     # Ensure (H, W, C) - expected by ConvPaint
     if image.ndim == 3 and image.shape[2] < 4:
         image = np.moveaxis(image, 2, 0)
-
     # Define the model
     model = Hookmodel(model_name=model_name)
     # Ensure the layers are given as a list
@@ -104,30 +108,33 @@ def time_convpaint(image, labels=None, layer_list=[0], scalings=[1,2], model_nam
     layers = [all_layers[i] for i in layer_list]
     # Register the hooks for the selected layers
     model.register_hooks(selected_layers=layers)
+    t_load = time() - t_start_load
 
     # Extract features for the full image
-    t_start_features = time()
+    t_start_features_full = time()
     features = filter_image_multichannels(image, model, scalings=scalings, order=order, image_downsample=1)
-    t_features = time() - t_start_features
+    t_features_full = time() - t_start_features_full
     if labels is None:
-        return t_features
+        return t_load, t_features_full, None, None, None, None
 
-    # Do the full self-prediction (extracting only annot features for training)
-    # without loading the model if labels are given
-    t_start_full = time()
+    # Do the full self-prediction (extracting only annot features for training) if labels are given
+    t_start_features_train = time()
     features_annot, targets = get_features_current_layers(
         model=model, image=image, annotations=labels, scalings=scalings,
         order=1, use_min_features=False, image_downsample=1)
-    # Train and predict
-    t_start_pred = time()
+    t_features_train = time() - t_start_features_train
     # Train the classifier
+    t_start_train = time()
     features_train, labels_train = features_annot, targets
     random_forest = RandomForestClassifier(random_state=random_state)
     random_forest.fit(features_train, labels_train)
+    t_train = time() - t_start_train
     # Predict on the image
+    t_start_pred = time()
     predicted = predict_image(
         image, model, random_forest, scalings=scalings,
         order=1, use_min_features=False, image_downsample=1)
     t_pred = time() - t_start_pred
-    t_tot = time() - t_start_full
-    return t_features, t_pred, t_tot
+    # Also calculate the total time for the self-prediction
+    t_selfpred = time() - t_start_features_train
+    return t_load, t_features_full, t_features_train, t_train, t_pred, t_selfpred

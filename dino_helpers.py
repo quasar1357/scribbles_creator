@@ -35,6 +35,11 @@ def extract_dino_features(image, dinov2_model='s', pad_mode='reflect'):
     return patch_features_flat
 
 def time_dino(image, labels=None, dinov2_model='s', pad_mode='reflect', random_state=None, interpolate_features=False):
+    """
+    Time different steps of slefprediction using DINOv2.
+    """
+    # Load the model
+    t_start_load = time()
     # Ensure (H, W, C) - expected by DINOv2
     if len(image.shape) == 3 and image.shape[0] < 4:
         image = np.moveaxis(image, 0, -1)
@@ -60,9 +65,10 @@ def time_dino(image, labels=None, dinov2_model='s', pad_mode='reflect', random_s
         loaded_dinov2_models[dinov2_name] = torch.hub.load('facebookresearch/dinov2', dinov2_name, pretrained=True, verbose=False)
     model = loaded_dinov2_models[dinov2_name]
     model.eval()
+    t_load = time() - t_start_load
 
     # Extract features
-    t_start = time()
+    t_start_features_full = time()
     trainset_mean, trainset_sd = [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
     # If the image is RGB, extract features from the RGB channels
     if len(padded_image.shape) == 3 and padded_image.shape[2] == 3:
@@ -105,12 +111,14 @@ def time_dino(image, labels=None, dinov2_model='s', pad_mode='reflect', random_s
 
             features_list.append(channel_features)
         features = np.concatenate(features_list, axis=1)
-    t_features = time() - t_start
+    t_features_full = time() - t_start_features_full
     if labels is None:
-        return t_features
+        return t_load, t_features_full, None, None, None, None
 
+    # We always extract the features of the full image for the training
+    t_features_train = t_features_full
     # Do training and prediction
-    t_start_pred = time()
+    t_start_train = time()
     padded_labels = pad_to_patch(labels, "bottom", "right", pad_mode="constant", patch_size=(14,14))
     patch_features_flat = features
     num_features = patch_features_flat.shape[1]
@@ -119,7 +127,9 @@ def time_dino(image, labels=None, dinov2_model='s', pad_mode='reflect', random_s
     features_train, labels_train = features_annot, targets
     random_forest = RandomForestClassifier(n_estimators=100, random_state=random_state)
     random_forest.fit(features_train, labels_train)
+    t_train = time() - t_start_train
     # PREDICT
+    t_start_pred = time()
     # If we want interpolated features, we reshape them to the image size (with interpolation), and then reshape them back to flat features
     if interpolate_features:
         feature_space = reshape_patches_to_img(patch_features_flat, padded_image.shape[:2], patch_size=(14,14), interpolation_order=interpolate_features)
@@ -135,5 +145,6 @@ def time_dino(image, labels=None, dinov2_model='s', pad_mode='reflect', random_s
         pred_img = np.reshape(predicted_labels, padded_image.shape[:2])
     pred_img_recrop = pred_img[:image.shape[0], :image.shape[1]]
     t_pred = time() - t_start_pred
-    t_tot = time() - t_start
-    return t_features, t_pred, t_tot
+    # Also calculate the total time for the self-prediction
+    t_selfpred = time() - t_start_features_full
+    return t_load, t_features_full, t_features_train, t_train, t_pred, t_selfpred
