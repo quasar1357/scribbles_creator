@@ -3,6 +3,7 @@ from sklearn.ensemble import RandomForestClassifier
 from skimage.transform import resize
 import torch
 from torchvision.transforms import ToTensor
+from time import time
 
 loaded_dinov2_models = {}
 
@@ -95,7 +96,7 @@ def extract_features(image, dinov2_model='s', rgb=True):
         dinov2_features = extract_features_multichannel(image, dinov2_model)
     return dinov2_features
 
-def get_annot_features_and_targets(patch_features_flat, labels, patch_size=(14,14), interpolate_features=True):
+def get_annot_features_and_targets(patch_features_flat, labels, patch_size=(14,14), interpolate_features=False):
     '''
     Takes linearized per-patch features and 2D per-pixel labels, and extracts the features and targets for annotated pixels.
     INPUT:
@@ -121,7 +122,7 @@ def get_annot_features_and_targets(patch_features_flat, labels, patch_size=(14,1
 
 ### MAIN FUNCTIONS ###
 
-def train_dino_forest(image_batch, labels_batch, dinov2_model='s', pad_mode='reflect', random_state=None, rgb=True, interpolate_features=True):
+def train_dino_forest(image_batch, labels_batch, dinov2_model='s', pad_mode='reflect', random_state=None, rgb=True, interpolate_features=False, print_steps=False):
     '''
     Takes an image batch and a label batch, extracts features using a DINOv2 model, and trains a random forest classifier.
     INPUT:
@@ -148,7 +149,16 @@ def train_dino_forest(image_batch, labels_batch, dinov2_model='s', pad_mode='ref
         raise ValueError('All images in the batch must have the same number of channels')
     features_list = []
     targets_list = []
+    i = 0
+    num_labelled = sum([np.any(labels) for labels in labels_batch])
+    t_start = time()
     for image, labels in zip(image_batch, labels_batch):
+        if np.all(labels == 0):
+            continue
+        if print_steps:
+            est_t = f"{((time()-t_start)/(i))*(num_labelled-i):.1f} seconds" if i > 0 else "NA"
+            print(f'Extracting features for labels {i+1}/{num_labelled} - estimated time left: {est_t}')
+            i += 1
         padded_image = pad_to_patch(image, "bottom", "right", pad_mode=pad_mode, patch_size=(14,14))
         padded_labels = pad_to_patch(labels, "bottom", "right", pad_mode="constant", patch_size=(14,14))
         patch_features_flat = extract_features(padded_image, dinov2_model, rgb)
@@ -158,11 +168,13 @@ def train_dino_forest(image_batch, labels_batch, dinov2_model='s', pad_mode='ref
     features_annot = np.concatenate(features_list)
     targets = np.concatenate(targets_list)
     features_train, labels_train = features_annot, targets
+    if print_steps:
+        print('Training random forest')
     random_forest = RandomForestClassifier(n_estimators=100, random_state=random_state)
     random_forest.fit(features_train, labels_train)
     return random_forest
 
-def predict_dino_forest(image, random_forest, dinov2_model='s', pad_mode='reflect', rgb=True, interpolate_features=True):
+def predict_dino_forest_single_img(image, random_forest, dinov2_model='s', pad_mode='reflect', rgb=True, interpolate_features=False):
     '''
     Takes an image and a trained random forest classifier, extracts features using a DINOv2 model, and predicts labels.
     INPUT:
@@ -195,7 +207,32 @@ def predict_dino_forest(image, random_forest, dinov2_model='s', pad_mode='reflec
     pred_img_recrop = pred_img[:image.shape[0], :image.shape[1]]
     return pred_img_recrop
 
-def selfpredict_dino_forest(image, labels, dinov2_model='s', pad_mode='reflect', random_state=None, rgb=True, interpolate_features=True):
+def predict_dino_forest(img_stack, random_forest, dinov2_model='s', pad_mode='reflect', rgb=True, interpolate_features=False, print_steps=False):
+    '''
+    Takes an image stack and a trained random forest classifier, extracts features using a DINOv2 model, and predicts labels for all images.
+    INPUT:
+        img_stack (np.ndarray): image stack to predict on. Shape (N, H, W, C)
+        random_forest (RandomForestClassifier): trained random forest classifier
+        dinov2_model (str): model to use for feature extraction.
+            Options: 's', 'b', 'l', 'g', 's_r', 'b_r', 'l_r', 'g_r' (r = registers)
+        pad_mode (str): padding mode for the patches, according to numpy pad method
+        rgb (bool): whether to treat a 3-channel image as RGB or not
+        interpolate_features (bool): whether to interpolate the features to per-pixel level
+        print_steps (bool): whether to print progress
+    OUTPUT:
+        pred_stack (np.ndarray): predicted labels. Shape (N, H, W)
+    '''
+    pred_stack = np.zeros_like(img_stack[:,:,:,0])
+    t_start = time()
+    for i, img in enumerate(img_stack):
+        if print_steps:
+            est_t = f"{((time()-t_start)/(i))*(len(img_stack)-i):.1f} seconds" if i > 0 else "NA"
+            print(f'Predicting image {i+1}/{len(img_stack)} - estimated time left: {est_t}')
+        pred_stack[i] = (predict_dino_forest_single_img(img, random_forest, dinov2_model=dinov2_model, pad_mode=pad_mode, rgb=rgb, interpolate_features=interpolate_features))
+    return pred_stack
+
+
+def selfpredict_dino_forest(image, labels, dinov2_model='s', pad_mode='reflect', random_state=None, rgb=True, interpolate_features=False):
     '''
     Takes an image and labels, extracts features using a DINOv2 model, trains a random forest classifier
     based on the labels, and predicts labels for the entire image.
@@ -237,6 +274,15 @@ def selfpredict_dino_forest(image, labels, dinov2_model='s', pad_mode='reflect',
         pred_img = np.reshape(predicted_labels, padded_image.shape[:2])
     pred_img_recrop = pred_img[:image.shape[0], :image.shape[1]]
     return pred_img_recrop
+
+def full_seg_dino_forest(train_image_batch, labels_batch, pred_image_stack=None, dinov2_model='s', pad_mode='reflect', random_state=None, rgb=True, interpolate_features=False, print_steps=False):
+    if pred_image_stack is None:
+        pred_image_stack = train_image_batch
+    dino_cfg = {'dinov2_model': dinov2_model, 'pad_mode': pad_mode, 'rgb': rgb, 'interpolate_features': interpolate_features}
+    rf = train_dino_forest(train_image_batch, labels_batch, random_state=random_state, print_steps=print_steps, **dino_cfg)
+    pred_stack = predict_dino_forest(pred_image_stack, rf, print_steps=print_steps, **dino_cfg)
+    return pred_stack
+
 
 ### HELPER FUNCTIONS ###
 
@@ -319,3 +365,51 @@ def reshape_patches_to_img(patches, image_shape, patch_size=(14,14), interpolati
     else:
         patch_img = resize(patch_img, image_shape[0:2], mode='edge', order=interpolation_order, preserve_range=True)
     return patch_img
+
+
+### RUN DINO_FOREST INTERACTIVELY ###
+
+def run_dino_forest():
+    '''
+    Use the console to ask for input and output for segmentation of a video using DINOv2 as feature extractor and a random forest classifier.
+    INPUT: None
+    OUTPUT: None
+    '''
+    import numpy as np
+    from PIL import Image
+    import napari
+    from skvideo import io as skvideo_io
+
+    train_path = input('Please enter the path to a video you want to label: ')
+    print('Loading video...')
+    train_data = skvideo_io.vread(train_path)
+    v = napari.view_image(train_data)
+    labels = np.zeros_like(train_data[:,:,:,0])
+    v.add_labels(labels, name='Labels')
+    input('Please change to the napari viewer and label any selection of frames in the video, then come back here and press enter.')
+    labels_batch = v.layers['Labels'].data
+    v.close()
+
+    pred_on_train = input('Do you want to predict on the training data? (y/n): ').upper() == 'Y'
+    if pred_on_train:
+        pred_data = train_data
+    else:
+        pred_path = input('Please enter the path to a video you want to segment: ')
+        pred_data = skvideo_io.vread(pred_path)
+    
+    pred_seg = full_seg_dino_forest(train_data, labels_batch, pred_data, print_steps=True)
+
+    v = napari.view_image(pred_data, name='Input')
+    # v.add_labels(labels_batch, name='Labels')
+    v.add_labels(pred_seg, name='Predictions')
+    pred_save_path = input('Would you like to save the predictions? Press enter to continue without saving, or enter a path to save the predictions to that path.')
+    if pred_save_path:
+        skvideo_io.vwrite(pred_save_path, pred_seg)
+    label_save_path = input('Would you like to save the labels? Press enter to continue without saving, or enter a path to save the labels to that path.')
+    if label_save_path:
+        skvideo_io.vwrite(label_save_path, labels_batch)
+    input('Press enter to finish and exit.')
+    return
+
+if __name__ == '__main__':
+    run_dino_forest()
