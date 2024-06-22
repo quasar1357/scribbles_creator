@@ -1,7 +1,7 @@
 # scribbles creator
 
 Welcome to scribbles creator. This is a little tool to automatically create scribble annotations, similar to if you would draw them by hand, based on the ground truth of an image. It can be very useful for testing tools that perform semantic segmentation based on sparse annotations. In this repository, also python scripts and notebooks are provided to test segmentation with on two different datasets: `cellpose` and `FoodSeg103`.
-![Abstract Scribble Creator](./docs/abstract_scribbles.pdf)
+![Abstract Scribble Creator](./docs/scribbles_creator_abstract.png)
 
 **If you decide to use this tool or some of the code in any sort of public work, please do contact me and cite this repository. I would be excited.**
 
