@@ -37,7 +37,8 @@ def selfpred_convpaint(image, labels, layer_list=[0], scalings=[1,2], model="vgg
 
 def get_features_targets_model(image, labels, layer_list=[0], scalings=[1,2], model_name="vgg16"):
     '''
-    Extract features from an image using ConvPaint and VGG16 as feature extractor.
+    Extract features of annotated pixels (not entire image) from an image using ConvPaint and VGG16 as feature extractor.
+    Return the extracted features together with their targets and the model used for feature extraction.
     INPUT:
         image (np.ndarray): image to extract features from. Shape (C, H, W)
         labels (np.ndarray): labels for the image. Shape (H, W), same dimensions as image

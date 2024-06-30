@@ -378,6 +378,7 @@ def run_dino_forest():
     import numpy as np
     from PIL import Image
     import napari
+    import tifffile
     from skvideo import io as skvideo_io
 
     train_path = input('Please enter the path to a video you want to label: ')
@@ -404,10 +405,16 @@ def run_dino_forest():
     v.add_labels(pred_seg, name='Predictions')
     pred_save_path = input('Would you like to save the predictions? Press enter to continue without saving, or enter a path to save the predictions to that path.')
     if pred_save_path:
-        skvideo_io.vwrite(pred_save_path, pred_seg)
+        if pred_save_path[-4:] == '.tif' or pred_save_path[-5:] == '.tiff':
+            tifffile.imwrite(pred_save_path, pred_seg.astype('uint8'))
+        else:
+            skvideo_io.vwrite(pred_save_path, pred_seg)
     label_save_path = input('Would you like to save the labels? Press enter to continue without saving, or enter a path to save the labels to that path.')
     if label_save_path:
-        skvideo_io.vwrite(label_save_path, labels_batch)
+        if label_save_path[-4:] == '.tif' or label_save_path[-5:] == '.tiff':
+            tifffile.imwrite(label_save_path, labels_batch.astype('uint8'))
+        else:
+            skvideo_io.vwrite(label_save_path, labels_batch)
     input('Press enter to finish and exit.')
     return
 
