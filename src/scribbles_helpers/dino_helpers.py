@@ -1,5 +1,5 @@
 import numpy as np
-from dino_forest import *
+from scribbles_helpers.dino_forest import *
 from time import time
 import torch
 from torchvision.transforms import ToTensor

@@ -6,11 +6,11 @@ from PIL import Image
 import napari
 
 from scribbles_creator import create_even_scribbles
-from convpaint_helpers import selfpred_convpaint, generate_convpaint_tag, time_convpaint
-from ilastik_helpers import selfpred_ilastik, time_ilastik
-from dino_helpers import selfpred_dino, time_dino
+from scribbles_helpers.convpaint_helpers import selfpred_convpaint, generate_convpaint_tag, time_convpaint
+from scribbles_helpers.ilastik_helpers import selfpred_ilastik, time_ilastik
+from scribbles_helpers.dino_helpers import selfpred_dino, time_dino
 from napari_convpaint.conv_paint_utils import compute_image_stats, normalize_image
-from image_analysis_helpers import single_img_stats
+from scribbles_helpers.image_analysis_helpers import single_img_stats
 
 
 
