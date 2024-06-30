@@ -6,5 +6,6 @@ setup(name='scribblescreator',
     author='Roman Schwob',
     author_email='roman.schwob@students.unibe.ch',
     license='GNU GPLv3',
-    packages=['.'],
+    packages=['.', 'scribbles_helpers'],
+    package_dir={'': 'src'},
     zip_safe=False)
