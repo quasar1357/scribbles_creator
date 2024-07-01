@@ -7,10 +7,10 @@ import napari
 from time import time
 
 from scribbles_creator import create_even_scribbles
-from scribbles_helpers.convpaint_helpers import selfpred_convpaint, generate_convpaint_tag, extract_convpaint_features, time_convpaint
-from scribbles_helpers.ilastik_helpers import selfpred_ilastik, extract_ilastik_features, time_ilastik
-from scribbles_helpers.dino_helpers import selfpred_dino, extract_dino_features, time_dino
-from scribbles_helpers.image_analysis_helpers import single_img_stats
+from scribbles_testing.convpaint_helpers import selfpred_convpaint, generate_convpaint_tag, extract_convpaint_features, time_convpaint
+from scribbles_testing.ilastik_helpers import selfpred_ilastik, extract_ilastik_features, time_ilastik
+from scribbles_testing.dino_helpers import selfpred_dino, extract_dino_features, time_dino
+from scribbles_testing.image_analysis_helpers import single_img_stats
 
 
 

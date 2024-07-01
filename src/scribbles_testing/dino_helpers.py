@@ -1,5 +1,5 @@
 import numpy as np
-from scribbles_helpers.dino_forest import *
+from scribbles_testing.dino_forest import *
 from time import time
 import torch
 from torchvision.transforms import ToTensor
@@ -8,7 +8,7 @@ loaded_dinov2_models = {}
 
 def selfpred_dino(image, labels, dinov2_model='s', upscale_order=1, pad_mode='reflect', random_state=None):
     '''
-    Predict full semantic segmentation of an image using labels for this same image with ConvPaint and DINOv2 (from dino_paint) as feature extractor (train and predict on same image).
+    Predict full semantic segmentation of an image using labels for this same image with ConvPaint and DINOv2 as feature extractor (train and predict on same image).
     INPUT:
         image (np.ndarray): image to predict on; shape (H, W, C) or (C, H, W)
         labels (np.ndarray): labels for the image; shape (H, W), same dimensions as image
