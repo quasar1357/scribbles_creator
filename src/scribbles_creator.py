@@ -14,7 +14,7 @@ def create_even_scribbles(ground_truth, max_perc=0.2, margin=0.75, rel_scribble_
         rel_scribble_len (int/bool): length of the single scribbles relative to pixel dimensions, i.e. the number of scribbles that would fit the image (empirical default value: 20/(max_perc**0.25))
         scribble_width (int): the width of the individual scribbles
         mode (str): the scribble types to use (lines, prim_sk, sec_sk, both_sk, all)
-        class_dist (str or float): the distribution of the classes in the ground truth: relative (keep % annot for each class), even (same num pix per class), or balanced (mean of relative and even); can also be given as a float between 0 and 1 for a linear interpolation between even and relative (1=even)
+        class_dist (str or float): the distribution of the classes in the ground truth: relative (keep % annot for each class), absolute (same num pix per class), or balanced (mean of relative and absolute); can also be given as a float between 0 and 1 for a linear interpolation between absolute and relative (1=absolute)
         enforce_max_perc (bool): whether to enforce the maximum percentage of pixels in the scribble annotation (in case it has to be surpassed, e.g. due to the scribble width)
         print_steps (bool): whether to print the steps of the scribble creation
     Output:
@@ -61,7 +61,7 @@ def create_scribbles(ground_truth, scribble_width=1, sk_max_perc=0.05, sk_margin
         lines_margin (float): for the lines - the margin for minimum nr. pixels that should be picked, as a proportion of the pixels given by max_perc (default: 0.75)
         line_pix_range (int): the range that the number of pixels for a line shall be in
         mode (str): the scribble types to use (lines, prim_sk, sec_sk, both_sk, all)
-        class_dist (str or float): the distribution of the classes in the ground truth: relative (keep % annot for each class), even (same num pix per class), or balanced (mean of relative and even); can also be given as a float between 0 and 1 for a linear interpolation between even and relative (1=even)
+        class_dist (str or float): the distribution of the classes in the ground truth: relative (keep % annot for each class), absolute (same num pix per class), or balanced (mean of relative and absolute); can also be given as a float between 0 and 1 for a linear interpolation between absolute and relative (1=absolute)
         enforce_max_perc (bool): whether to enforce the maximum percentage of pixels in the scribble annotation (in case it has to be surpassed, e.g. due to the scribble width)
         print_steps (bool): whether to print the steps of the scribble creation
     Output:
@@ -75,22 +75,22 @@ def create_scribbles(ground_truth, scribble_width=1, sk_max_perc=0.05, sk_margin
         img_pix = np.sum(ground_truth != 0)
         class_pix = np.sum(ground_truth == class_val)
         # Calculate the maximum percentage of pixels for the class according to the distribution chosen
-        even_factor = img_pix / (num_classes * class_pix) # this is the factor to use to turn relative (same percentage) into even (same absolute number) distribution
-        if class_dist == "even":
-            class_sk_max_perc = sk_max_perc * even_factor
-            class_lines_max_perc = lines_max_perc * even_factor
+        abs_factor = img_pix / (num_classes * class_pix) # this is the factor to use to turn relative (same percentage) into absolute (same number) distribution
+        if class_dist == "absolute":
+            class_sk_max_perc = sk_max_perc * abs_factor
+            class_lines_max_perc = lines_max_perc * abs_factor
         elif class_dist == "balanced":
-            class_sk_max_perc = (sk_max_perc + sk_max_perc * even_factor) / 2
-            class_lines_max_perc = (lines_max_perc + lines_max_perc * even_factor) / 2
+            class_sk_max_perc = (sk_max_perc + sk_max_perc * abs_factor) / 2
+            class_lines_max_perc = (lines_max_perc + lines_max_perc * abs_factor) / 2
         elif class_dist == "relative":
             class_sk_max_perc = sk_max_perc
             class_lines_max_perc = lines_max_perc
-        # We also allow for a linear interpolation between the even and relative distribution; this is done if class_dist is given as a float between 0 and 1
+        # We also allow for a linear interpolation between the absolute and relative distribution; this is done if class_dist is given as a float between 0 and 1
         elif 0 <= class_dist <= 1:
-            class_sk_max_perc = (1 - class_dist) * sk_max_perc + class_dist * sk_max_perc * even_factor
-            class_lines_max_perc = (1 - class_dist) * lines_max_perc + class_dist * lines_max_perc * even_factor
+            class_sk_max_perc = (1 - class_dist) * sk_max_perc + class_dist * sk_max_perc * abs_factor
+            class_lines_max_perc = (1 - class_dist) * lines_max_perc + class_dist * lines_max_perc * abs_factor
         else:
-            raise ValueError(f"Invalid class distribution: {class_dist}. Choose from 'relative', 'even', 'balanced'; or pass the 'evenness' as a float between 0 and 1.")
+            raise ValueError(f"Invalid class distribution: {class_dist}. Choose from 'relative', 'absolute', 'balanced'; or pass the 'absolute-ness' as a float between 0 and 1.")
 
         # Calculate the total maximum percentage of pixels for the class according to the mode chosen
         if mode == "all": tot_max_perc = 2*class_sk_max_perc + class_lines_max_perc
