@@ -6,14 +6,16 @@ Welcome to scribbles creator. This is a little tool to automatically create scri
   <img src="./docs/scribbles_creator_abstract.png" width="70%" />
 </p>
 
-**If you decide to use this tool or some of the code in any sort of public work, please do contact me and cite this repository. I would be excited.**
+Once you're here, also check out [seghub](https://github.com/quasar1357/seghub), a toolbox for semantic segmentation using different models as feature extractors feeding a random forest classifier. 
+
+**If you decide to use tools of my repos or some of the code for any sort of public work, please quickly contact me and cite this repository. I would be excited.**
 
 ## Requirements
-For the use of scribbles_creator to automatically generate manual-like annotations, only the few packages in [requirements.txt](./requirements.txt) are necessary. As usual, you can install them using
+For using scribbles_creator and automatically generate manual-like annotations, you only need the few packages in [requirements.txt](./requirements.txt). As usual, they can be installed using
 
     pip install -r requirements.txt
 
-If you want to also perform tests using different semantic segmentation tools as shown here, you will need further packages, which are listed in the req_full.yml. We recommend installing them into a fresh conda environment, using
+If you also want to perform tests using different semantic segmentation tools as shown here, you will need further packages, which are listed in the req_full.yml. We recommend installing them into a fresh conda environment, using
 
     conda env create -f req.yml
 
