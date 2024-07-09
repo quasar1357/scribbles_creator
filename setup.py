@@ -1,7 +1,7 @@
 from setuptools import setup
 
 setup(name='scribblescreator',
-    version='1.3.0',
+    version='2.0.0',
     description='Automatic scribble creation based on ground truth data.',
     author='Roman Schwob',
     author_email='roman.schwob@students.unibe.ch',

@@ -3,6 +3,16 @@ from napari_convpaint.conv_paint_utils import (Hookmodel, filter_image_multichan
 from sklearn.ensemble import RandomForestClassifier
 from time import time
 
+def generate_convpaint_tag(layer_list, scalings, model="vgg16"):
+    '''
+    Generate a tag for a ConvPaint prediction based on the model, the layer list and the scalings
+    '''
+    model_pref = f'_{model}' if model != 'vgg16' else ''
+    layer_pref = f'_l-{str(layer_list)[1:-1].replace(", ", "-")}'# if layer_list != [0] else ''
+    scalings_pref = f'_s-{str(scalings)[1:-1].replace(", ", "-")}'# if scalings != [1,2] else ''
+    pred_tag = f"convpaint{model_pref}{layer_pref}{scalings_pref}"
+    return pred_tag
+
 def selfpred_convpaint(image, labels, layer_list=[0], scalings=[1,2], model="vgg16", random_state=None):
     '''
     Predict full semantic segmentation of an image using labels for this same image with ConvPaint and VGG16 as feature extractor (train and predict on same image).
@@ -63,18 +73,6 @@ def get_features_targets_model(image, labels, layer_list=[0], scalings=[1,2], mo
         model=model, image=image, annotations=labels, scalings=scalings,
         order=1, use_min_features=False, image_downsample=1)
     return features_annot, targets, model
-
-
-def generate_convpaint_tag(layer_list, scalings, model="vgg16"):
-    '''
-    Generate a tag for a ConvPaint prediction based on the model, the layer list and the scalings
-    '''
-    model_pref = f'_{model}' if model != 'vgg16' else ''
-    layer_pref = f'_l-{str(layer_list)[1:-1].replace(", ", "-")}'# if layer_list != [0] else ''
-    scalings_pref = f'_s-{str(scalings)[1:-1].replace(", ", "-")}'# if scalings != [1,2] else ''
-    pred_tag = f"convpaint{model_pref}{layer_pref}{scalings_pref}"
-    return pred_tag
-
 
 def extract_convpaint_features(image, layer_list=[0], scalings=[1,2], model_name="vgg16", order=0):
     # Define the model

@@ -6,11 +6,16 @@ from PIL import Image
 import napari
 
 from scribbles_creator import create_even_scribbles
-from scribbles_testing.convpaint_helpers import selfpred_convpaint, generate_convpaint_tag, time_convpaint
-from scribbles_testing.ilastik_helpers import selfpred_ilastik, time_ilastik
-from scribbles_testing.dino_helpers import selfpred_dino, time_dino
 from napari_convpaint.conv_paint_utils import compute_image_stats, normalize_image
 from scribbles_testing.image_analysis_helpers import single_img_stats
+from seghub.ilastik_utils import get_ila_feature_space
+from seghub.vgg16_utils import get_vgg16_feature_space
+from seghub.dino_utils import get_dinov2_feature_space
+from seghub.rf_utils import selfpredict_seg_forest_single_image
+
+from scribbles_testing.convpaint_helpers import generate_convpaint_tag, time_convpaint
+from scribbles_testing.ilastik_helpers import time_ilastik
+from scribbles_testing.dino_helpers import time_dino
 
 
 
@@ -78,21 +83,23 @@ def bin_for_file(bin):
 
 
 
-def preprocess_img(img):
+def preprocess_img(img, remove_empty_channels=False):
     '''
     Preprocess the image for the ConvPaint model.
-    The shape is ensured to be (C, H, W). The channels are checked for values, and if a channel contains no values, it is removed.The image is normalized.
+    The image is normalized to (0,1)
+    The image is ensured to be (H, W, C) or (H, W)
+    Optionally: If some channels contain no values, they are removed.
     INPUT:
         img (np.array): the image to be preprocessed
     OUTPUT:
         img (np.array): the preprocessed image
     '''
-    # Ensure right shape and dimension order    
+    # Re-shape to (C, H, W) for easier handling
     if img.ndim == 3 and img.shape[2] < 4:
-        img = np.moveaxis(img, -1, 0) # ConvPaint expects (C, H, W)
+        img = np.moveaxis(img, -1, 0)
 
     # If some channel(s) contain(s) no values, remove them
-    if img.ndim == 3 and img.shape[0] == 3:
+    if img.ndim == 3 and img.shape[0] == 3 and remove_empty_channels:
         # Check which channels contain values
         img_r_is_active = np.count_nonzero(img[0]) > 0
         img_g_is_active = np.count_nonzero(img[1]) > 0
@@ -110,9 +117,12 @@ def preprocess_img(img):
             print("All channels contain values.")
 
     # Normalize the image
-    img_mean, img_std = compute_image_stats(img, ignore_n_first_dims=img.ndim-2)
-    img = normalize_image(img, img_mean, img_std)
-    
+    img = img/255
+
+    # Ensure the image has the right shape (H, W, C)
+    if img.ndim == 3 and img.shape[0] < 4:
+        img = np.moveaxis(img, 0, -1)
+
     return img
 
 
@@ -200,7 +210,7 @@ def create_cellpose_scribble(folder_path, img_num, bin=0.1, margin=0.75, rel_scr
 
 
 
-def pred_cellpose(folder_path, img_num, pred_type="convpaint", mode="all", bin="NA", scribble_width=None, suff=False, save_res=False, show_res=False, show_gt=True, **pred_kwargs):
+def pred_cellpose(folder_path, img_num, pred_type="convpaint", mode="all", bin="NA", scribble_width=None, suff=False, save_res=False, show_res=False, show_gt=True, random_state=0, **pred_kwargs):
     '''
     Load the image and the scribbles and predict segmentation of the image using the given prediction method. Optionally save the prediction and show the results in a napari viewer.
     INPUT:
@@ -219,7 +229,7 @@ def pred_cellpose(folder_path, img_num, pred_type="convpaint", mode="all", bin="
     '''
     # Generate the convpaint model prefix given the model, the layer list and the scalings
     if pred_type == "convpaint":
-        pred_tag = generate_convpaint_tag(pred_kwargs["layer_list"], pred_kwargs["scalings"], pred_kwargs["model"])
+        pred_tag = generate_convpaint_tag(pred_kwargs["layer_list"], pred_kwargs["scalings"], pred_kwargs["model_name"])
     else:
         pred_tag = pred_type
     
@@ -232,9 +242,8 @@ def pred_cellpose(folder_path, img_num, pred_type="convpaint", mode="all", bin="
     print(image.shape, labels.shape)
 
     # Predict the image
-    pred_func = {"convpaint": selfpred_convpaint, "ilastik": selfpred_ilastik, "dino": selfpred_dino}[pred_type]
-    prediction = pred_func(image, labels, **pred_kwargs)
-
+    features_func = {"convpaint": get_vgg16_feature_space, "ilastik": get_ila_feature_space, "dino": get_dinov2_feature_space}[pred_type]
+    prediction = selfpredict_seg_forest_single_image(image, labels, features_func, random_state=random_state, features_cfg=pred_kwargs)
     if save_res:
         # Save the scribble annotation as an image
         pred_path = img_data["pred_path"]
@@ -257,22 +266,21 @@ def pred_cellpose(folder_path, img_num, pred_type="convpaint", mode="all", bin="
 def pred_cellpose_convpaint(folder_path, img_num, mode="all", bin="NA", scribble_width=None, suff=False, save_res=False, show_res=False, show_gt=True,
                             layer_list=[0], scalings=[1,2], model="vgg16", random_state=None):
     '''Shortcut for pred_cellpose() with pred_type="convpaint" (see pred_cellpose() for details).'''
-    prediction = pred_cellpose(folder_path, img_num, pred_type="convpaint", mode=mode, bin=bin, scribble_width=scribble_width, suff=suff, save_res=save_res, show_res=show_res, show_gt=show_gt,
-                               layer_list=layer_list, scalings=scalings, model=model, random_state=random_state)
+    prediction = pred_cellpose(folder_path, img_num, pred_type="convpaint", mode=mode, bin=bin, scribble_width=scribble_width, suff=suff, save_res=save_res, show_res=show_res, show_gt=show_gt, random_state=random_state,
+                               layer_list=layer_list, scalings=scalings, model_name=model)
     return prediction
 
 def pred_cellpose_ilastik(folder_path, img_num, mode="all", bin="NA", scribble_width=None, suff=False, save_res=False, show_res=False, show_gt=True,
                           random_state=None):
     '''Shortcut for pred_cellpose() with pred_type="ilastik" (see pred_cellpose() for details).'''
-    prediction = pred_cellpose(folder_path, img_num, pred_type="ilastik", mode=mode, bin=bin, scribble_width=scribble_width, suff=suff, save_res=save_res, show_res=show_res, show_gt=show_gt,
-                               random_state=random_state)
+    prediction = pred_cellpose(folder_path, img_num, pred_type="ilastik", mode=mode, bin=bin, scribble_width=scribble_width, suff=suff, save_res=save_res, show_res=show_res, show_gt=show_gt, random_state=random_state)
     return prediction
 
 def pred_cellpose_dino(folder_path, img_num, mode="all", bin="NA", scribble_width=None, suff=False, save_res=False, show_res=False, show_gt=True,
-                       dinov2_model='s', upscale_order=1, random_state=None):
+                       dinov2_model='s_r', upscale_order=False, random_state=None):
     '''Shortcut for pred_cellpose() with pred_type="dino" (see pred_cellpose() for details).'''
-    prediction = pred_cellpose(folder_path, img_num, pred_type="dino", mode=mode, bin=bin, scribble_width=scribble_width, suff=suff, save_res=save_res, show_res=show_res, show_gt=show_gt,
-                               dinov2_model=dinov2_model, upscale_order=upscale_order, random_state=random_state)
+    prediction = pred_cellpose(folder_path, img_num, pred_type="dino", mode=mode, bin=bin, scribble_width=scribble_width, suff=suff, save_res=save_res, show_res=show_res, show_gt=show_gt, random_state=random_state,
+                               dinov2_model=dinov2_model, interpolate_features=upscale_order)
     return prediction
 
 

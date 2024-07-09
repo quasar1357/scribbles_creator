@@ -7,10 +7,16 @@ import napari
 from time import time
 
 from scribbles_creator import create_even_scribbles
-from scribbles_testing.convpaint_helpers import selfpred_convpaint, generate_convpaint_tag, extract_convpaint_features, time_convpaint
-from scribbles_testing.ilastik_helpers import selfpred_ilastik, extract_ilastik_features, time_ilastik
-from scribbles_testing.dino_helpers import selfpred_dino, extract_dino_features, time_dino
+from napari_convpaint.conv_paint_utils import compute_image_stats, normalize_image
 from scribbles_testing.image_analysis_helpers import single_img_stats
+from seghub.ilastik_utils import get_ila_feature_space
+from seghub.vgg16_utils import get_vgg16_feature_space
+from seghub.dino_utils import get_dinov2_feature_space
+from seghub.rf_utils import selfpredict_seg_forest_single_image
+
+from scribbles_testing.convpaint_helpers import generate_convpaint_tag, time_convpaint
+from scribbles_testing.ilastik_helpers import time_ilastik
+from scribbles_testing.dino_helpers import time_dino
 
 
 
@@ -144,7 +150,7 @@ def create_food_scribble(ground_truth, folder_path, img_num, bin=0.1, margin=0.7
 
 
 
-def pred_food(image, folder_path, img_num, pred_type="convpaint", mode="all", bin="NA", scribble_width=None, suff=False, save_res=False, show_res=False, ground_truth=None, **pred_kwargs):
+def pred_food(image, folder_path, img_num, pred_type="convpaint", mode="all", bin="NA", scribble_width=None, suff=False, save_res=False, show_res=False, ground_truth=None, random_state=0, **pred_kwargs):
     '''
     Load the scribbles and predict segmentation of the given image using the given prediction method. Optionally save the prediction and show the results in a napari viewer.
     INPUT:
@@ -164,7 +170,7 @@ def pred_food(image, folder_path, img_num, pred_type="convpaint", mode="all", bi
     '''
     # Generate the convpaint model prefix given the model, the layer list and the scalings
     if pred_type == "convpaint":
-        pred_tag = generate_convpaint_tag(pred_kwargs["layer_list"], pred_kwargs["scalings"], pred_kwargs["model"])
+        pred_tag = generate_convpaint_tag(pred_kwargs["layer_list"], pred_kwargs["scalings"], pred_kwargs["model_name"])
     else:
         pred_tag = pred_type
 
@@ -172,9 +178,15 @@ def pred_food(image, folder_path, img_num, pred_type="convpaint", mode="all", bi
     img_data = get_food_img_data(folder_path, img_num, load_scribbles=True, mode=mode, bin=bin, scribble_width=scribble_width, suff=suff, load_pred=False, pred_tag=pred_tag)
     labels = img_data["scribbles"]
 
+    # Pre-process the image to (0, 1) and (H, W, C) format
+    image = image/255
+    if image.ndim == 3 and image.shape[0] < 4:
+        image = np.moveaxis(image, 0, -1)
+
     # Predict the image
-    pred_func = {"convpaint": selfpred_convpaint, "ilastik": selfpred_ilastik, "dino": selfpred_dino}[pred_type]
-    prediction = pred_func(image, labels, **pred_kwargs)
+    features_func = {"convpaint": get_vgg16_feature_space, "ilastik": get_ila_feature_space, "dino": get_dinov2_feature_space}[pred_type]
+    prediction = selfpredict_seg_forest_single_image(image, labels, features_func, random_state=random_state, features_cfg=pred_kwargs)
+
     if pred_type == "ilastik":
         prediction = post_proc_ila_pred(prediction, labels)
 
@@ -207,22 +219,21 @@ def post_proc_ila_pred(prediction, labels):
 def pred_food_convpaint(image, folder_path, img_num, mode="all", bin="NA", scribble_width=None, suff=False, save_res=False, show_res=False, ground_truth=None,
                         layer_list=[0], scalings=[1,2], model="vgg16", random_state=None):
     '''Shortcut for pred_food() with pred_type="convpaint" (see pred_cellpose() for details).'''
-    prediction = pred_food(image, folder_path, img_num, pred_type="convpaint", mode=mode, bin=bin, scribble_width=scribble_width, suff=suff, save_res=save_res, show_res=show_res, ground_truth=ground_truth,
-                           layer_list=layer_list, scalings=scalings, model=model, random_state=random_state)
+    prediction = pred_food(image, folder_path, img_num, pred_type="convpaint", mode=mode, bin=bin, scribble_width=scribble_width, suff=suff, save_res=save_res, show_res=show_res, ground_truth=ground_truth, random_state=random_state,
+                           layer_list=layer_list, scalings=scalings, model_name=model)
     return prediction
 
 def pred_food_ilastik(image, folder_path, img_num, mode="all", bin="NA", scribble_width=None, suff=False, save_res=False, show_res=False, ground_truth=None,
                       random_state=None):
     '''Shortcut for pred_food() with pred_type="ilastik" (see pred_cellpose() for details).'''
-    prediction = pred_food(image, folder_path, img_num, pred_type="ilastik", mode=mode, bin=bin, scribble_width=scribble_width, suff=suff, save_res=save_res, show_res=show_res, ground_truth=ground_truth,
-                           random_state=random_state)
+    prediction = pred_food(image, folder_path, img_num, pred_type="ilastik", mode=mode, bin=bin, scribble_width=scribble_width, suff=suff, save_res=save_res, show_res=show_res, ground_truth=ground_truth, random_state=random_state)
     return prediction
 
 def pred_food_dino(image, folder_path, img_num, mode="all", bin="NA", scribble_width=None, suff=False, save_res=False, show_res=False, ground_truth=None,
-                   dinov2_model='s', upscale_order=1, random_state=None):
+                   dinov2_model='s_r', upscale_order=False, random_state=None):
     '''Shortcut for pred_food() with pred_type="dino" (see pred_cellpose() for details).'''
-    prediction = pred_food(image, folder_path, img_num, pred_type="dino", mode=mode, bin=bin, scribble_width=scribble_width, suff=suff, save_res=save_res, show_res=show_res, ground_truth=ground_truth,
-                           dinov2_model=dinov2_model, upscale_order=upscale_order, random_state=random_state)
+    prediction = pred_food(image, folder_path, img_num, pred_type="dino", mode=mode, bin=bin, scribble_width=scribble_width, suff=suff, save_res=save_res, show_res=show_res, ground_truth=ground_truth, random_state=random_state,
+                           dinov2_model=dinov2_model, interpolate_features=upscale_order)
     return prediction
 
 

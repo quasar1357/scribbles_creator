@@ -1,16 +1,22 @@
 name: scribbles_env
 channels:
   - conda-forge
-- pip
-- pip:
-    - numpy
-    - scikit-image
+  - ilastik-forge
+dependencies:
+  - python=3.9.19
+  - numpy
+  - pandas
+  - seaborn
+  - scikit-image
+  - ilastik-napari==0.2.2
+  - fastfilters==0.2.4.post83
+  - ipykernel
+  - pip
+  - pip:
     - scipy
-    - pandas
-    - seaborn
     - datasets
     - napari[all]
-    - git+https://github.com/guiwitz/napari-convpaint.git
+    - napari-convpaint==0.3.0
     - --extra-index-url https://download.pytorch.org/whl/cu117
     - torch
     - torchvision
