@@ -257,7 +257,7 @@ def analyse_food_single_file(ground_truth, folder_path, img_num, mode="all", bin
                     "pix_labelled", "max_class_pix_labelled", "min_class_pix_labelled", "pix_in_img", "perc. labelled", "accuracy",
                     "scribbles", "prediction"
     '''
-    img_data = get_food_img_data(folder_path, img_num, load_scribbles=True, mode=mode, bin=bin, scribble_width=scribble_width, suff=suff, load_pred=False, pred_tag=pred_tag)
+    img_data = get_food_img_data(folder_path, img_num, load_scribbles=True, mode=mode, bin=bin, scribble_width=scribble_width, suff=suff, load_pred=True, pred_tag=pred_tag)
     scribbles_path = img_data["scribbles_path"]
     pred_path = img_data["pred_path"]
     # Read the images
