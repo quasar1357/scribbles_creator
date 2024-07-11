@@ -17,7 +17,7 @@ For using scribbles_creator and automatically generate manual-like annotations, 
 
 If you also want to perform tests using different semantic segmentation tools as shown here, you will need further packages, which are listed in the req_full.yml. We recommend installing them into a fresh conda environment, using
 
-    conda env create -f req.yml
+    conda env create -f req_full.yml
 
 ## Installation
 You can install scribbles_creator via pip using
