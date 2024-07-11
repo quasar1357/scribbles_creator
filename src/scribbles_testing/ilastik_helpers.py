@@ -12,7 +12,6 @@ from sklearn.ensemble import RandomForestClassifier
 import numpy as np
 from time import time
 
-
 # Define the filter set and scales
 FILTER_LIST = (Gaussian,
                LaplacianOfGaussian,
@@ -92,7 +91,6 @@ def ila_self_pred_from_features(feature_map, labels, random_state=None):
         max_probs = np.maximum(prediction[class_label], max_probs)
     return labels_predicted
 
-
 def selfpred_ilastik(image, labels, random_state=None, filter_set=FILTER_SET):
     '''
     Pixel classification with Ilastik.
@@ -111,7 +109,6 @@ def selfpred_ilastik(image, labels, random_state=None, filter_set=FILTER_SET):
     # Fit the classifier and predict
     prediction = ila_self_pred_from_features(features, labels, random_state=random_state)
     return prediction
-
 
 def time_ilastik(image, labels=None, filter_set=FILTER_SET, random_state=None):
     """

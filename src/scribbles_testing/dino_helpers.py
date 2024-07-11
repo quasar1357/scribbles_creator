@@ -26,7 +26,6 @@ def selfpred_dino(image, labels, dinov2_model='s', upscale_order=1, pad_mode='re
     pred = selfpredict_dino_forest(image, labels, dinov2_model=dinov2_model, pad_mode=pad_mode, random_state=random_state, rgb=True, interpolate_features=upscale_order)
     return pred
 
-
 def extract_dino_features(image, dinov2_model='s', pad_mode='reflect'):
     if len(image.shape) == 3 and image.shape[0] < 4:
         image = np.moveaxis(image, 0, -1) # DINOv2 expects (H, W, C)
