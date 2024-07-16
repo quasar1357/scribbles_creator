@@ -11,7 +11,7 @@ from scribbles_testing.image_analysis_helpers import single_img_stats
 from seghub.ilastik_utils import get_ila_feature_space
 from seghub.vgg16_utils import get_vgg16_feature_space
 from seghub.dino_utils import get_dinov2_feature_space
-from seghub.rf_utils import selfpredict_seg_forest_single_image
+from seghub.rf_utils import selfpredict_segforest_single_image
 
 from scribbles_testing.convpaint_helpers import generate_convpaint_tag, time_convpaint
 from scribbles_testing.ilastik_helpers import time_ilastik
@@ -243,7 +243,7 @@ def pred_cellpose(folder_path, img_num, pred_type="convpaint", mode="all", bin="
 
     # Predict the image
     features_func = {"convpaint": get_vgg16_feature_space, "ilastik": get_ila_feature_space, "dino": get_dinov2_feature_space}[pred_type]
-    prediction = selfpredict_seg_forest_single_image(image, labels, features_func, random_state=random_state, features_cfg=pred_kwargs)
+    prediction = selfpredict_segforest_single_image(image, labels, features_func, random_state=random_state, features_cfg=pred_kwargs)
     if save_res:
         # Save the scribble annotation as an image
         pred_path = img_data["pred_path"]
