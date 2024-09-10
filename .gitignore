@@ -2,7 +2,9 @@ __pycache__
 archive
 cellpose_train_imgs
 cellpose_results/data
+cellpose_results/compare_envs_for_convpaint_settings
 FoodSeg103_results/data
 others
 trash
 vid_test
+tests/pylint_logs

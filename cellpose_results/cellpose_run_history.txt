@@ -42,3 +42,8 @@ run05	After fixing the above issues, dilation inside loop, and edge cases handle
 run06	Use scribbles of run05 (copied over, named run06 but in fact from run05), but convpaint prediction with all features (not splitting off eval/test...)
 	run06a --> initial run06 with buggy ilastik (prob>0.5 instead of max. prob)
 	run06  --> everything from run06a but with fixed ilastik
+
+run07	Use scribbles of run06 (i.e. also of run05) but use seghub004 with right normalization in VGG16 and DINOv2 and correct RGB implementation in VGG16
+
+run08	Test with only image channels as features; scribbles from run07 (not copied), ran with notebook quick and dirty
+	(merged results from run07 and run08 are called cellpose_run0807)
