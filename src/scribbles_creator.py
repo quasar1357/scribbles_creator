@@ -451,7 +451,7 @@ def pick_sk_squares(sk, gt_mask, sk_max_pix=20, sq_size=20, sq_pix_range=(10,40)
     # Ensure all pixels of the dilated skeleton are within the mask
     sk_dilated = np.logical_and(sk_dilated, gt_mask)
     # Initialize the mask of all squares and variables for the loop
-    all_squares = np.zeros_like(sk_dilated, dtype=np.bool8)
+    all_squares = np.zeros_like(sk_dilated, dtype=np.bool_)
     added_pix = 0
     idx = 0
     overshoots = 0
@@ -542,11 +542,10 @@ def pick_sk_squares_optim(sk, gt_mask, sk_max_pix=20, sk_margin=0.75,
     # a range starting at a lower value (allowing fewer pixels in a square)
     # NOTE: We check at least for 1 pixel, since otherwise we would allow for empty scribbles;
     #       meanwhile take floor to ensure it cannot be expected to be above the allowed max
-    while np.all(
-        added_pix < max(1, np.floor(sk_max_pix * sk_margin)), # until required min nr pix were added
-        sq_size > scribble_width, # not reducing the square size below scribble_width
-        added_pix < np.sum(sk_dilated) # until all pix in dilated skel were added
-        ):
+    while (added_pix < max(1, np.floor(sk_max_pix * sk_margin)) and # until required min nr pix were added
+           sq_size > scribble_width and # not reducing the square size below scribble_width
+           added_pix < np.sum(sk_dilated) # until all pix in dilated skel were added
+           ):
         # Reduce the square size
         diff_to_width = sq_size - scribble_width
         sq_size = scribble_width + diff_to_width//2
@@ -630,7 +629,7 @@ def create_lines(sk, gt_mask, lines_max_pix=20, line_pix_range=(10, 40), scribbl
     # Shuffle the coordinates of the skeleton to loop over them in a random order
     np.random.shuffle(sk_coordinates)
     # Initialize the mask of all picked lines and variables for the loop
-    all_lines = np.zeros_like(gt_mask, dtype=np.bool8)
+    all_lines = np.zeros_like(gt_mask, dtype=np.bool_)
     added_pix = 0
     idx = 0
     overshoots = 0
@@ -727,7 +726,7 @@ def create_lines_optim(sk, gt_mask, lines_max_pix=20, lines_margin=0.75, line_pi
                                                                       line_pix_range,
                                                                       scribble_width,
                                                                       line_crop)
-    avg_len_tried = get_lines_stats(tried_single_pix_lines)[:2]
+    avg_len_tried = get_lines_stats(tried_single_pix_lines)[0]
     avg_pix_tried, min_pix_tried, max_pix_tried = get_lines_stats(tried_dilated_lines)[:3]
     tot_added_pix = np.sum(lines)
     lines_max_pix_left = lines_max_pix - tot_added_pix
@@ -742,7 +741,7 @@ def create_lines_optim(sk, gt_mask, lines_max_pix=20, lines_margin=0.75, line_pi
         needed_line_len = int(upper_bound / scribble_width)
         # Lines must be shorter than both the maximum allowed length for a scribble
         # and the maximum number of pixels left in total
-        if avg_pix_tried > upper_bound and avg_len_tried > 0:
+        if (avg_pix_tried > upper_bound) and (avg_len_tried > 0):
             # If even the minimum tried so far (and therefore all lines) is above the upper bound,
             # crop the lines accordingly
             if min_pix_tried > upper_bound:
