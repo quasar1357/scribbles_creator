@@ -726,7 +726,7 @@ def create_lines_optim(sk, gt_mask, lines_max_pix=20, lines_margin=0.75, line_pi
                                                                       line_pix_range,
                                                                       scribble_width,
                                                                       line_crop)
-    avg_len_tried = get_lines_stats(tried_single_pix_lines)[0]
+    avg_len_tried, min_len_tried = get_lines_stats(tried_single_pix_lines)[:2]
     avg_pix_tried, min_pix_tried, max_pix_tried = get_lines_stats(tried_dilated_lines)[:3]
     tot_added_pix = np.sum(lines)
     lines_max_pix_left = lines_max_pix - tot_added_pix
