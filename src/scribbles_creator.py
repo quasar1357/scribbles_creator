@@ -1,5 +1,5 @@
 import numpy as np
-from skimage.morphology import skeletonize, binary_closing, binary_dilation, binary_erosion, square
+from skimage.morphology import skeletonize, binary_closing, binary_dilation, binary_erosion, rectangle
 from skimage.draw import line
 from scipy.spatial import distance
 
@@ -863,3 +863,6 @@ def point_to_edge(start_point, segmentation_mask):
                             closest_edge_point[0], closest_edge_point[1])
     path_mask[row_ids, col_ids] = True
     return path_mask
+
+def square(side):
+  return rectangle(n, n)
